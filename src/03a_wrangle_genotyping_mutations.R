@@ -50,7 +50,7 @@ caveman_snps <-
   dplyr::filter(DP > 50, 0.3 < VAF, VAF < 0.7) %>%
   # get those at common snp sites
   dplyr::inner_join(common_snps) %>%
-  dplyr::transmute(pdid = "PD63118", chr = `#CHROM`, pos = POS, ref = REF,
+  dplyr::transmute(donor_id = "PD63118", chr = `#CHROM`, pos = POS, ref = REF,
                    mut = ALT) %>%
   type_mutations() %>%
   dplyr::distinct()
@@ -70,9 +70,9 @@ nanoseq_muts <-
       dplyr::mutate(seq_type = seq_type)
   }) %>%
   dplyr::bind_rows() %>%
-  dplyr::mutate(pdid = stringr::str_sub(sampleID, 1, 7)) %>%
-  dplyr::filter(pdid == curr_pdid) %>%
-  dplyr::distinct(pdid, chr, pos, ref, mut) %>%
+  dplyr::mutate(donor_id = stringr::str_sub(sampleID, 1, 7)) %>%
+  dplyr::filter(donor_id == curr_donor_id) %>%
+  dplyr::distinct(donor_id, chr, pos, ref, mut) %>%
   type_mutations()
 
 # write mutations
