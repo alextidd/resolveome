@@ -6,7 +6,8 @@ wd=$(pwd)
   cd out/nf-resolveome/49900
   nextflow run $wd/../nextflow/nf-resolveome \
     --samplesheet samplesheet.tsv \
-    --bed $wd/data/immune_panel/Probes_merged_ok_combined_Sanger_Immune-v1_TE-91661256_hg19.bed \
+    --bait_set $wd/data/immune_panel/Probes_merged_ok_combined_Sanger_Immune-v1_TE-91661256_hg19.bed \
+    --genes TNFRSF14,CD274 \
     --fasta /lustre/scratch124/casm/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCh38_full_analysis_set_plus_decoy_hla/genome.fa \
     --location irods \
     --out_dir ./ \

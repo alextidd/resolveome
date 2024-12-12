@@ -2,7 +2,9 @@
 library(magrittr)
 
 # dirs
-dir.create("out/nf-resolveome/")
+donor_id <- "PD63118"
+out_dir <- paste0("out/nf-resolveome/", donor_id, "/")
+dir.create(out_dir)
 wd <- getwd()
 
 # genotype muts and snps
@@ -15,45 +17,53 @@ muts_and_snps <-
   }) %>%
   dplyr::bind_rows(.id = "source")
 muts_and_snps %>%
-  readr::write_tsv("out/nf-resolveome/mutations.tsv")
+  readr::write_tsv(paste0(out_dir, "/mutations.tsv"))
 
-# samplesheet 49686
-dir.create("out/nf-resolveome/49686/")
-bams_dir <- "/lustre/scratch125/casm/team268im/fa8/117/PTA_49686/lane4-5/"
-tibble::tibble(
-  donor_id = "PD63118", run = "49686",
-  bam = list.files(bams_dir, recursive = TRUE, pattern = ".cram$",
-                   full.names = TRUE),
-  mutations = paste0(wd, "/out/nf-resolveome/mutations.tsv")) %>%
-  dplyr::mutate(id = stringr::str_extract(bam, "plex\\d+"),
-                plex_n = gsub("plex", "", id)) %>%
-  # remove spike ins, get plex 1-19
-  dplyr::filter(!grepl("_phix.cram", bam), id %in% paste0("plex", 1:19)) %>%
-  readr::write_tsv("out/nf-resolveome/49686/samplesheet.tsv")
+# generate samplesheets
+ss <- list()
+
+# samplesheet 49686 (19 cells)
+ss[["49686"]] <-
+  tibble::tibble(
+    run = "49686",
+    lane_n = "4-5",
+    plex_n = seq(1, 19)) %>%
+  dplyr::transmute(
+    run, plex_n, lane_n,
+    id = paste0(run, "_plex", plex_n),
+    bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/",
+                 "lane", lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#",
+                 plex_n, ".cram"))
 
 # samplesheet 49882 (80 cells)
-dir.create("out/nf-resolveome/49882/")
-run <- "49882"
-tibble::tibble(
-  plex_n = seq(1, 80)) %>%
+ss[["49882"]] <-
+  tibble::tibble(
+    run = "49882",
+    plex_n = seq(1, 80)) %>%
   dplyr::transmute(
-    donor_id = "PD63118", id = paste0("plex", plex_n), run, plex_n,
+    run, plex_n,
+    id = paste0(run, "_plex", plex_n),
     bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/plex",
-                 plex_n, "/", run, "#", plex_n, ".cram"),
-    mutations = paste0(wd, "/out/nf-resolveome/mutations.tsv")) %>%
-  readr::write_tsv("out/nf-resolveome/49882/samplesheet.tsv")
+                 plex_n, "/", run, "#", plex_n, ".cram"))
 
-# samplesheet 49900 (80 cells with bait capture
-dir.create("out/nf-resolveome/49900/")
-tibble::tibble(
-  donor_id = "PD63118",
-  plex_n = seq(1, 80),
-  lane_n = 2) %>%
+# samplesheet 49900 (80 cells with bait capture)
+ss[["49900"]] <-
+  tibble::tibble(
+    run = "49900", 
+    plex_n = seq(1, 80),
+    lane_n = "2") %>%
   dplyr::transmute(
-    id = paste0("plex", plex_n), run = "49900", plex_n, donor_id,
-    lane = paste0("lane", lane_n),
-    bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/",
-                 lane, "/plex", plex_n, "/", run, "_", lane_n, "#", plex_n,
-                 ".cram"),
-    mutations = paste0(wd, "/out/nf-resolveome/mutations.tsv")) %>%
-  readr::write_tsv("out/nf-resolveome/49900/samplesheet.tsv")
+    run, plex_n, lane_n,
+    id = paste0(run, "_plex", plex_n),
+    bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/lane",
+                 lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#", plex_n,
+                 ".cram"))
+
+# combine and write
+ss <-
+  ss %>%
+  dplyr::bind_rows() %>%
+  dplyr::mutate(donor_id = donor_id,
+                mutations = paste0(wd, "/out/nf-resolveome/PD63118/mutations.tsv"))
+ss %>%
+  readr::write_tsv(paste0(out_dir, "/samplesheet.tsv"))
