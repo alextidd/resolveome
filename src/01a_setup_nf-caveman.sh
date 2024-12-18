@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # dirs
-mkdir out/caveman/
+mkdir out/nf-caveman/
 
 # create samplesheet
 ls /lustre/scratch125/casm/team268im/fa8/117/PTA_49686/lane4-5/plex{1..19}/*cram | \
@@ -20,6 +20,6 @@ BEGIN {
     tumour_bam = $0;                        # Full path of the tumour BAM
     normal_bam = "/lustre/scratch125/casm/team268im/fa8/119/live/3464/PD63118b_lo0001/PD63118b_lo0001.sample.dupmarked.bam";
     print donor_id, sample_id, tumour_bam, normal_bam;
-}' > out/caveman/samplesheet.csv
+}' > out/nf-caveman/samplesheet.csv
 
 # convert to bams
