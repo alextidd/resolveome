@@ -1,17 +1,15 @@
 # libraries
 library(magrittr)
+library(ggplot2)
 
 # load ss
 ss <- 
-  system("ls out/nf-resolveome/*/samplesheet.tsv", intern = TRUE) %>%
-  purrr::map(readr::read_tsv) %>%
-  dplyr::bind_rows() %>%
-  dplyr::filter(run %in% c("49882", "49900"))
+  readr::read_tsv("out/nf-resolveome/PD63118/samplesheet.tsv") %>%
+  dplyr::mutate(plex_id = paste0("plex", plex_n))
 
 # load mutations
 muts <-
-  readr::read_tsv("out/nf-resolveome/annotated_mutations.tsv") %>%
-  dplyr::filter(source == "nanoseq_mutations")
+  readr::read_tsv("out/nf-resolveome/annotated_mutations.tsv")
 
 # remove dodgy sites identified across all Exome NanoSeq data via Andrew's Kolmogorov-Smirnoff test
 bad_sites <- 
@@ -22,9 +20,9 @@ bad_sites <-
 # load genotyping
 geno <-
   ss %>%
-  purrr::pmap(function(run, id, donor_id, ...) {
-    paste0("out/nf-resolveome/", run, "/", donor_id, "/", id, "/genotyping/",
-           id, "_genotyped_mutations.tsv") %>%
+  purrr::pmap(function(run, id, donor_id, plex_id, ...) {
+    paste0("out/nf-resolveome/", run, "/", donor_id, "/", plex_id, "/genotyping/",
+           plex_id, "_genotyped_mutations.tsv") %>%
       readr::read_tsv() %>%
       dplyr::inner_join(muts) %>%
       dplyr::mutate(run = run, id = id, donor_id = donor_id)
@@ -41,9 +39,41 @@ pos_geno <-
   dplyr::mutate(mut_id = paste(chr, pos, ref, mut, sep = "_"),
                 mut_lab = paste(chr, pos, ref, mut, type, aachange, ifelse(is.na(gene), "", gene))) %>%
   # remove bad sites
-  dplyr::filter(!mut_id %in% bad_sites$Var1)
+  dplyr::filter(!(mut_id %in% bad_sites$Var1))
 pos_geno %>%
   readr::write_tsv("out/nf-resolveome/annotated_genotyped_mutations.tsv")
+
+# function: plot vaf dist
+plot_vaf_dist <- function(p_dat) {
+  mut_depth_bins <- c("0", "1", ">1", ">5", ">10", ">50")
+  p_dat2 <-
+    p_dat %>%
+    dplyr::mutate(mut_vaf = mut_depth / total_depth,
+                  mut_depth_bin = dplyr::case_when(mut_depth > 50 ~ ">50",
+                                                    mut_depth > 10 ~ ">10",
+                                                    mut_depth > 5 ~ ">5",
+                                                    mut_depth > 1 ~ ">1",
+                                                    mut_depth == 1 ~ "1",
+                                                    mut_depth == 0 ~ "0") %>%
+                    factor(levels = mut_depth_bins))
+  p_dat2 %>%
+    ggplot(aes(x = mut_vaf, fill = mut_depth_bin, colour = mut_depth_bin)) +
+    geom_histogram(bins = 100) +
+    geom_vline(aes(xintercept = med_mut_vaf),
+               linetype = "dashed") +
+    theme_minimal() +
+    viridis::scale_fill_viridis(discrete = TRUE) +
+    viridis::scale_color_viridis(discrete = TRUE) +
+    facet_grid(source ~ .) +
+    xlim(0, 1)
+}
+
+# plot vaf dist
+pos_geno %>%
+  dplyr::group_by(source, run) %>%
+  dplyr::mutate(med_mut_vaf = median(mut_vaf, na.rm = TRUE)) %>%
+  plot_vaf_dist() +
+  ggh4x::facet_grid2(source ~ run, scales = "free_y", independent = "y")
 
 # Reshape the data to a matrix format with mut_lab as rows and id as columns
 plot_vaf_heatmap <- function(p_dat, p_title = "Mutational VAF Heatmap") {

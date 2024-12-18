@@ -8,16 +8,18 @@ dir.create(out_dir)
 wd <- getwd()
 
 # genotype muts and snps
+muts_file <- file.path(wd, out_dir, donor_id, "mutations.tsv")
 muts_and_snps <-
   c("caveman_snps", "nanoseq_mutations") %>%
   purrr::set_names() %>%
   purrr::map(function(source) {
     paste0("out/genotyping/", source, ".tsv") %>%
-      readr::read_tsv()
+      readr::read_tsv() %>%
+      dplyr::rename(donor_id = pdid)
   }) %>%
   dplyr::bind_rows(.id = "source")
 muts_and_snps %>%
-  readr::write_tsv(paste0(out_dir, "/mutations.tsv"))
+  readr::write_tsv(muts_file)
 
 # generate samplesheets
 ss <- list()
@@ -30,7 +32,6 @@ ss[["49686"]] <-
     plex_n = seq(1, 19)) %>%
   dplyr::transmute(
     run, plex_n, lane_n,
-    id = paste0(run, "_plex", plex_n),
     bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/",
                  "lane", lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#",
                  plex_n, ".cram"))
@@ -42,7 +43,6 @@ ss[["49882"]] <-
     plex_n = seq(1, 80)) %>%
   dplyr::transmute(
     run, plex_n,
-    id = paste0(run, "_plex", plex_n),
     bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/plex",
                  plex_n, "/", run, "#", plex_n, ".cram"))
 
@@ -54,7 +54,6 @@ ss[["49900"]] <-
     lane_n = "2") %>%
   dplyr::transmute(
     run, plex_n, lane_n,
-    id = paste0(run, "_plex", plex_n),
     bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/lane",
                  lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#", plex_n,
                  ".cram"))
@@ -63,7 +62,7 @@ ss[["49900"]] <-
 ss <-
   ss %>%
   dplyr::bind_rows() %>%
-  dplyr::mutate(donor_id = donor_id,
-                mutations = paste0(wd, "/out/nf-resolveome/PD63118/mutations.tsv"))
-ss %>%
-  readr::write_tsv(paste0(out_dir, "/samplesheet.tsv"))
+  dplyr::mutate(donor_id = paste0(donor_id, "_", run),
+                id = paste0("plex", plex_n),
+                mutations = muts_file)
+ss %>% readr::write_tsv(paste0(out_dir, "/samplesheet.tsv"))

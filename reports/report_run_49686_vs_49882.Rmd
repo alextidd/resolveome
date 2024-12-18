@@ -93,7 +93,7 @@ summ %>%
   labs(title = "Mean coverage",
        x = "Plex",
        y = "Mean coverage") +
-  ggh4x::facet_grid2(~ run, scales ="free_x", space="free_x") +
+  ggh4x::facet_grid2(~ run, scales = "free_x", space = "free_x") +
   theme(axis.text.x = element_text(angle = -90, hjust = 0)) +
   tidytext::scale_x_reordered()
 ```
