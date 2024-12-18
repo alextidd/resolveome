@@ -1,3 +1,12 @@
+# libraries
+library(magrittr)
+
+# dirs
+donor_id <- "PD63118"
+out_dir <- paste0("out/nf-resolveome/", donor_id, "/")
+dir.create(out_dir)
+wd <- getwd()
+
 # function: define mutation type based on ref and alt, split up mnvs and dnvs
 type_mutations <- function(df) {
   typed_df <-
@@ -9,7 +18,7 @@ type_mutations <- function(df) {
       nchar(ref) == 2 & nchar(mut) == 2 ~ "dnv",
       nchar(ref) > 1 & nchar(mut) > 1 ~ "mnv"
     ))
-  
+
   # expand dnv/mnv mutations to all positions
   if (any(typed_df$type %in% c("dnv", "mnv"))) {
     typed_df_dnv_mnv <-
@@ -52,12 +61,9 @@ caveman_snps <-
   dplyr::inner_join(common_snps) %>%
   dplyr::transmute(donor_id = "PD63118", chr = `#CHROM`, pos = POS, ref = REF,
                    mut = ALT) %>%
+  # type the mutations
   type_mutations() %>%
   dplyr::distinct()
-
-# write to file
-caveman_snps %>%
-  readr::write_tsv("out/genotyping/caveman_snps.tsv")
 
 # nanoseq samplesheet
 ss_muts <- readr::read_tsv("data/nanoseq/samplesheet.tsv")
@@ -73,8 +79,60 @@ nanoseq_muts <-
   dplyr::mutate(donor_id = stringr::str_sub(sampleID, 1, 7)) %>%
   dplyr::filter(donor_id == curr_donor_id) %>%
   dplyr::distinct(donor_id, chr, pos, ref, mut) %>%
+  # type the mutations
   type_mutations()
 
 # write mutations
-nanoseq_muts %>%
-  readr::write_tsv("out/genotyping/nanoseq_mutations.tsv")
+muts_file <- file.path(wd, out_dir, donor_id, "mutations.tsv")
+muts_and_snps <-
+  list("caveman_snps" = caveman_snps,
+       "nanoseq_mutations" = nanoseq_muts) %>%
+  dplyr::bind_rows(.id = "source")
+muts_and_snps %>%
+  readr::write_tsv(muts_file)
+
+# generate samplesheets
+ss <- list()
+
+# samplesheet 49686 (19 cells)
+ss[["49686"]] <-
+  tibble::tibble(
+    run = "49686",
+    lane_n = "4-5",
+    plex_n = seq(1, 19)) %>%
+  dplyr::transmute(
+    run, plex_n, lane_n,
+    bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/",
+                 "lane", lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#",
+                 plex_n, ".cram"))
+
+# samplesheet 49882 (80 cells)
+ss[["49882"]] <-
+  tibble::tibble(
+    run = "49882",
+    plex_n = seq(1, 80)) %>%
+  dplyr::transmute(
+    run, plex_n,
+    bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/plex",
+                 plex_n, "/", run, "#", plex_n, ".cram"))
+
+# samplesheet 49900 (80 cells with bait capture)
+ss[["49900"]] <-
+  tibble::tibble(
+    run = "49900", 
+    plex_n = seq(1, 80),
+    lane_n = "2") %>%
+  dplyr::transmute(
+    run, plex_n, lane_n,
+    bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/lane",
+                 lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#", plex_n,
+                 ".cram"))
+
+# combine and write
+ss <-
+  ss %>%
+  dplyr::bind_rows() %>%
+  dplyr::mutate(donor_id = paste0(donor_id, "_", run),
+                id = paste0("plex", plex_n),
+                mutations = muts_file)
+ss %>% readr::write_tsv(paste0(out_dir, "/samplesheet.tsv"))

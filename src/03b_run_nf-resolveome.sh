@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J resolveome_PD63118 -o log/resolveome_PD63118_%J.out -e log/resolveome_PD63118_%J.err 'bash src/05b_run_nf-resolveome_PD63118.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J resolveome -o log/resolveome_%J.out -e log/resolveome_%J.err 'bash src/05b_run_nf-resolveome.sh'
 
 wd=$(pwd)
 (

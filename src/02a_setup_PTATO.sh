@@ -1,4 +1,5 @@
 #!/bin/bash
+cd /lustre/scratch125/casm/team268im/at31/nextflow/external/PTATO
 
 # clone the repo
 git clone git@github.com:ToolsVanBox/PTATO.git
@@ -33,18 +34,3 @@ mkdir resources/hg38/shapeit/shapeit_maps/
 wget https://github.com/odelaneau/shapeit4/blob/master/maps/genetic_maps.b38.tar.gz
 tar -xzvf genetic_maps.b38.tar.gz -C resources/hg38/shapeit/shapeit_maps/
 rm genetic_maps.b38.tar.gz
-
-# run
-module load singularity
-module load ISG/rocker/rver/4.4.0 
-export R_LIBS_USER=$HOME/R-tmp-4.4
-nextflow run ptato.nf \
-  -c ~/.nextflow/config \
-  -c configs/run-template.config \
-  -c configs/nextflow.config \
-  -c configs/process.config \
-  -c configs/resources.config \
-  --out_dir out/ \
-  -w work/ \
-  -resume 
-  # --run.QC false \

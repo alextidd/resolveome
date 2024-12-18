@@ -9,7 +9,7 @@ cd out/ptato/
 module load singularity
 module load ISG/rocker/rver/4.4.0 
 export R_LIBS_USER=$HOME/R-tmp-4.4
-nextflow run $wd/../tools/PTATO/ptato.nf \
+nextflow run $wd/../nextflow/external/PTATO/ptato.nf \
   --run.svs false \
   --run.cnvs false \
   --smurf.time '20d' \
