@@ -2,9 +2,9 @@
 library(magrittr)
 
 # dirs
-donor_id <- "PD63118"
-out_dir <- paste0("out/nf-resolveome/", donor_id, "/")
-dir.create(out_dir)
+donor_id_i <- "PD63118"
+out_dir <- paste0("out/nf-resolveome/", donor_id_i, "/")
+dir.create(out_dir, showWarnings = FALSE)
 wd <- getwd()
 
 # function: define mutation type based on ref and alt, split up mnvs and dnvs
@@ -27,8 +27,8 @@ type_mutations <- function(df) {
       dplyr::mutate(mut_id = paste(chr, pos, ref, mut, type)) %>%
       dplyr::group_by(dplyr::across(-c(pos, mut, ref))) %>%
       dplyr::reframe(pos = pos:(pos + nchar(mut) - 1),
-                    ref = strsplit(ref, split = "") %>% unlist(),
-                    mut = strsplit(mut, split = "") %>% unlist()) %>%
+                     ref = strsplit(ref, split = "") %>% unlist(),
+                     mut = strsplit(mut, split = "") %>% unlist()) %>%
       dplyr::select(-mut_id)
     typed_df <-
       typed_df %>%
@@ -50,7 +50,7 @@ common_snps <-
 # extract common snps that are heterozygous
 # 0.3 < VAF < 0.7 and DP > 50
 caveman_snps <-
-  "/nfs/cancer_ref01/nst_links/live/3438/PD63118b_lo0009/PD63118b_lo0009.caveman_c.snps.vcf.gz" %>%
+  "/nfs/irods-cgp-sr13-sdh/intproj/3438/sample/PD63118b_lo0009/PD63118b_lo0009.v1.caveman_c.snps.vcf.gz" %>%
   readr::read_tsv(comment = "##") %>%
   dplyr::mutate(
     DP = strsplit(INFO, ";") %>% purrr::map_chr(~ .x[grepl("^DP=", .x)]) %>%
@@ -59,7 +59,7 @@ caveman_snps <-
   dplyr::filter(DP > 50, 0.3 < VAF, VAF < 0.7) %>%
   # get those at common snp sites
   dplyr::inner_join(common_snps) %>%
-  dplyr::transmute(donor_id = "PD63118", chr = `#CHROM`, pos = POS, ref = REF,
+  dplyr::transmute(donor_id = donor_id_i, chr = `#CHROM`, pos = POS, ref = REF,
                    mut = ALT) %>%
   # type the mutations
   type_mutations() %>%
@@ -77,13 +77,13 @@ nanoseq_muts <-
   }) %>%
   dplyr::bind_rows() %>%
   dplyr::mutate(donor_id = stringr::str_sub(sampleID, 1, 7)) %>%
-  dplyr::filter(donor_id == curr_donor_id) %>%
+  dplyr::filter(donor_id == donor_id_i) %>%
   dplyr::distinct(donor_id, chr, pos, ref, mut) %>%
   # type the mutations
   type_mutations()
 
 # write mutations
-muts_file <- file.path(wd, out_dir, donor_id, "mutations.tsv")
+muts_file <- file.path(wd, out_dir, "mutations.tsv")
 muts_and_snps <-
   list("caveman_snps" = caveman_snps,
        "nanoseq_mutations" = nanoseq_muts) %>%
@@ -132,7 +132,7 @@ ss[["49900"]] <-
 ss <-
   ss %>%
   dplyr::bind_rows() %>%
-  dplyr::mutate(donor_id = paste0(donor_id, "_", run),
+  dplyr::mutate(donor_id = paste0(donor_id_i, "_", run),
                 id = paste0("plex", plex_n),
                 mutations = muts_file)
 ss %>% readr::write_tsv(paste0(out_dir, "/samplesheet.tsv"))
