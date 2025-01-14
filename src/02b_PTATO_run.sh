@@ -15,15 +15,17 @@ wd=$(pwd)
     --run.svs false \
     --run.cnvs false \
     --smurf.time '20d' \
-    --smurf.cpus 24 \
+    --smurf.cpus = 24 \
+    --walker.time '7d' \
     --shapeit.reference /lustre/scratch125/casm/team268im/at31/tools/PTATO/resources/hg38/shapeit/Phasing_reference_no_chr/ \
     --shapeit.maps /lustre/scratch125/casm/team268im/at31/tools/PTATO/resources/hg38/shapeit/shapeit_maps_no_chr/ \
-    --walker.time '24h' \
+    --optional.short_variants.somatic_vcfs_dir $wd/out/ptato/intermediate/short_variants/somatic_vcfs/ \
+    --optional.short_variants.phased_vcfs_dir $wd/out/ptato/intermediate/short_variants/shapeit/ \
+    --optional.short_variants.ab_tables_dir $wd/out/ptato/intermediate/short_variants/ab/ \
+    --optional.short_variants.context_beds_dir $wd/out/ptato/intermediate/short_variants/context/ \
+    --optional.short_variants.features_beds_dir $wd/out/ptato/intermediate/short_variants/features/ \
     -c ~/.nextflow/config \
     -c $wd/../tools/PTATO/configs/run-template.config \
-    -c $wd/../tools/PTATO/configs/nextflow.config \
-    -c $wd/../tools/PTATO/configs/process.config \
-    -c $wd/../tools/PTATO/configs/resources.config \
     -c $wd/config/ptato.config \
     --out_dir ./ \
     -w $wd/work/ptato/ \

@@ -4,6 +4,6 @@
 # run nf-get_bam
 nextflow run ../nextflow/nf-get_bam \
   --samplesheet out/nf-resolveome/PD63118/samplesheet.tsv \
-  --out_dir out/BaseJumper/ \
+  --out_dir data/resolveome/ \
   --cram_to_bam \
   -resume

@@ -5,21 +5,21 @@ library(magrittr)
 
 # dirs
 wd <- getwd()
-out_dir <- "out/BaseJumper/"
+bam_dir <- "data/resolveome/"
 
 # create samplesheet
 # columns: biosampleName, read1, read2, groups, isbulk, bam
-ss <-
+ss_tmp <-
   readr::read_tsv("out/nf-resolveome/PD63118/samplesheet.tsv") %>%
   dplyr::transmute(
     biosampleName = id,
-    bam = file.path(wd, out_dir, donor_id, id, "bam", paste0(id, ".cram")),
+    bam = file.path(wd, bam_dir, donor_id, id, "bam", paste0(id, ".bam")),
     groups = donor_id, read1 = NA, read2 = NA,
     isbulk = FALSE)
 
 # create bulk entries
 ss_bulk <-
-  ss %>%
+  ss_tmp %>%
   dplyr::distinct(groups, read1, read2) %>%
   dplyr::mutate(
     biosampleName = "normal",
@@ -27,5 +27,5 @@ ss_bulk <-
     isbulk = TRUE)
 
 # combine
-ss <- dplyr::bind_rows(ss, ss_bulk)
+ss <- dplyr::bind_rows(ss_tmp, ss_bulk)
 ss %>% readr::write_csv("out/BaseJumper/samplesheet.csv")

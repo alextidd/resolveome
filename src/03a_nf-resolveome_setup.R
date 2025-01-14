@@ -12,11 +12,11 @@ type_mutations <- function(df) {
   typed_df <-
     df %>%
     dplyr::mutate(type = dplyr::case_when(
-      nchar(ref) == 1 & nchar(mut) == 1 ~ "snv",
-      nchar(ref) == 1 & nchar(mut) > 1 ~ "ins",
-      nchar(ref) > 1 & nchar(mut) == 1 ~ "del",
-      nchar(ref) == 2 & nchar(mut) == 2 ~ "dnv",
-      nchar(ref) > 1 & nchar(mut) > 1 ~ "mnv"
+      nchar(ref) == 1 & nchar(alt) == 1 ~ "snv",
+      nchar(ref) == 1 & nchar(alt) > 1 ~ "ins",
+      nchar(ref) > 1 & nchar(alt) == 1 ~ "del",
+      nchar(ref) == 2 & nchar(alt) == 2 ~ "dnv",
+      nchar(ref) > 1 & nchar(alt) > 1 ~ "mnv"
     ))
 
   # expand dnv/mnv mutations to all positions
@@ -24,11 +24,11 @@ type_mutations <- function(df) {
     typed_df_dnv_mnv <-
       typed_df %>%
       dplyr::filter(type %in% c("dnv", "mnv")) %>%
-      dplyr::mutate(mut_id = paste(chr, pos, ref, mut, type)) %>%
-      dplyr::group_by(dplyr::across(-c(pos, mut, ref))) %>%
-      dplyr::reframe(pos = pos:(pos + nchar(mut) - 1),
+      dplyr::mutate(mut_id = paste(chr, pos, ref, alt, type)) %>%
+      dplyr::group_by(dplyr::across(-c(pos, alt, ref))) %>%
+      dplyr::reframe(pos = pos:(pos + nchar(alt) - 1),
                      ref = strsplit(ref, split = "") %>% unlist(),
-                     mut = strsplit(mut, split = "") %>% unlist()) %>%
+                     alt = strsplit(alt, split = "") %>% unlist()) %>%
       dplyr::select(-mut_id)
     typed_df <-
       typed_df %>%
@@ -60,7 +60,7 @@ caveman_snps <-
   # get those at common snp sites
   dplyr::inner_join(common_snps) %>%
   dplyr::transmute(donor_id = donor_id_i, chr = `#CHROM`, pos = POS, ref = REF,
-                   mut = ALT) %>%
+                   alt = ALT) %>%
   # type the mutations
   type_mutations() %>%
   dplyr::distinct()
@@ -78,7 +78,8 @@ nanoseq_muts <-
   dplyr::bind_rows() %>%
   dplyr::mutate(donor_id = stringr::str_sub(sampleID, 1, 7)) %>%
   dplyr::filter(donor_id == donor_id_i) %>%
-  dplyr::distinct(donor_id, chr, pos, ref, mut) %>%
+  dplyr::rename(alt = mut) %>%
+  dplyr::distinct(donor_id, chr, pos, ref, alt) %>%
   # type the mutations
   type_mutations()
 
