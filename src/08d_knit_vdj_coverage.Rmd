@@ -1,0 +1,76 @@
+---
+title: "VDJ coverage"
+author: "Alexandra Tidd"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    fig_width: 8
+    keep_md: true
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 4
+    theme: lumen
+    css: "styles.css" # Link to your custom CSS file
+---
+
+
+```{r setup, include = F, message = F, warning = F, echo = F}
+# rmarkdown::render('src/08d_knit_VDJ_coverage.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_reconstruction/')
+
+# chunk options
+knitr::opts_knit$set(root.dir = "../")
+knitr::opts_chunk$set(warning = FALSE,
+                      dpi = 300,
+                      message = FALSE)
+
+# libraries
+library(magrittr)
+```
+
+```{r plots, results = 'asis', echo = F}
+# dirs
+wd <- getwd()
+plots <-
+  system(paste0("ls ", wd,
+                "/out/vdj_reconstruction/PD63118_49882/plex*/plots/plex*.png"),
+         intern = TRUE) %>%
+  tibble::tibble(plot = .) %>%
+  dplyr::mutate(name = basename(plot) %>% tools::file_path_sans_ext()) %>%
+  tidyr::separate_wider_delim(name, delim = "_", cols_remove = FALSE,
+                              names = c("id", "chr", "class", "type"),
+                              too_many = "merge") %>%
+  dplyr::mutate(plex_n = as.numeric(gsub("plex", "", id)),
+                id = id %>% forcats::fct_reorder(plex_n)) %>%
+  dplyr::arrange(plex_n) %>%
+  {split(., .$id)} %>%
+  purrr::map(~ split(.x, .x$class))
+
+# header params
+knit_header <-
+  '```{r, echo = F, include = T, message = T, fig.align = "center", fig.pos = "H", out.width = "1200px"}'
+
+# initialise chunks
+chunks <- c()
+
+# loop through plots
+purrr::walk2(names(plots), plots, function(id_i, id_dat) {
+  chunks <<- c(chunks, paste0("## ", id_i))
+  purrr::walk2(names(id_dat), id_dat, function(class_i, class_dat) {
+    chunks <<- c(chunks, paste0("### ", class_i))
+    purrr::walk(class_dat$plot, function(dat) {
+      knit_plot <- c(
+        '', knit_header,
+        paste0('knitr::include_graphics("', dat, '")'),
+        '```', '')
+      knitted_plot <-
+        knitr::knit_child(text = knit_plot, envir = environment(),
+                          quiet = TRUE)
+      chunks <<- c(chunks, knitted_plot)
+    })
+  })
+})
+
+# return
+cat(unlist(chunks), sep = "\n")
+```
