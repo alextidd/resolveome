@@ -16,3 +16,5 @@ fcs %>%
     fcs_a <- exprs(fcs_i)[, "FSC04-A"]
     hist(fcs_a, breaks = 100, main = "Cell Size Distribution", xlab = "FSC-A")
   })
+
+# Sample_1_Run_2_20241112155314.fcs

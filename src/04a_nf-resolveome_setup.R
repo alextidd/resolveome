@@ -1,5 +1,11 @@
+#!/usr/bin/env Rscript
+
 # libraries
 library(magrittr)
+
+# samplesheet
+ss_bams <- readr::read_tsv("data/resolveome/DNA/samplesheet.tsv")
+ss_muts <- readr::read_tsv("data/nanoseq/samplesheet.tsv")
 
 # dirs
 donor_id_i <- "PD63118"
@@ -65,9 +71,6 @@ caveman_snps <-
   type_mutations() %>%
   dplyr::distinct()
 
-# nanoseq samplesheet
-ss_muts <- readr::read_tsv("data/nanoseq/samplesheet.tsv")
-
 # get mutations from exome and targeted nanoseq
 nanoseq_muts <-
   ss_muts %>%
@@ -92,48 +95,7 @@ muts_and_snps <-
 muts_and_snps %>%
   readr::write_tsv(muts_file)
 
-# generate samplesheets
-ss <- list()
-
-# samplesheet 49686 (19 cells)
-ss[["49686"]] <-
-  tibble::tibble(
-    run = "49686",
-    lane_n = "4-5",
-    plex_n = seq(1, 19)) %>%
-  dplyr::transmute(
-    run, plex_n, lane_n,
-    bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/",
-                 "lane", lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#",
-                 plex_n, ".cram"))
-
-# samplesheet 49882 (80 cells)
-ss[["49882"]] <-
-  tibble::tibble(
-    run = "49882",
-    plex_n = seq(1, 80)) %>%
-  dplyr::transmute(
-    run, plex_n,
-    bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/plex",
-                 plex_n, "/", run, "#", plex_n, ".cram"))
-
-# samplesheet 49900 (80 cells with bait capture)
-ss[["49900"]] <-
-  tibble::tibble(
-    run = "49900", 
-    plex_n = seq(1, 80),
-    lane_n = "2") %>%
-  dplyr::transmute(
-    run, plex_n, lane_n,
-    bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/lane",
-                 lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#", plex_n,
-                 ".cram"))
-
 # combine and write
 ss <-
-  ss %>%
-  dplyr::bind_rows() %>%
-  dplyr::mutate(donor_id = paste0(donor_id_i, "_", run),
-                id = paste0("plex", plex_n),
-                mutations = muts_file)
-ss %>% readr::write_tsv(paste0(out_dir, "/samplesheet.tsv"))
+  ss_bams %>% dplyr::mutate(mutations = muts_file)
+ss %>% readr::write_csv(paste0(out_dir, "/samplesheet.csv"))

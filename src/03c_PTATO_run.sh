@@ -1,11 +1,11 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M20000 -R 'span[hosts=1] select[mem>20000] rusage[mem=20000]' -J ptato -o log/ptato_%J.out -e log/ptato_%J.err 'bash src/02b_PTATO_run.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M20000 -R 'span[hosts=1] select[mem>20000] rusage[mem=20000]' -J ptato -o log/ptato_%J.out -e log/ptato_%J.err 'bash src/03c_PTATO_run.sh'
 
 # dirs
 wd=$(pwd)
 
 (
-  cd out/ptato/
+  cd out/ptato/filtered_run/
 
   # run
   module load singularity
@@ -15,7 +15,7 @@ wd=$(pwd)
     --run.svs false \
     --run.cnvs false \
     --smurf.time '20d' \
-    --smurf.cpus = 24 \
+    --smurf.cpus 24 \
     --walker.time '7d' \
     --shapeit.reference /lustre/scratch125/casm/team268im/at31/tools/PTATO/resources/hg38/shapeit/Phasing_reference_no_chr/ \
     --shapeit.maps /lustre/scratch125/casm/team268im/at31/tools/PTATO/resources/hg38/shapeit/shapeit_maps_no_chr/ \

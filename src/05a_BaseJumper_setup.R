@@ -5,7 +5,7 @@ library(magrittr)
 
 # dirs
 wd <- getwd()
-bam_dir <- "data/resolveome/"
+bam_dir <- "data/resolveome/DNA/"
 
 # create samplesheet
 # columns: biosampleName, read1, read2, groups, isbulk, bam
