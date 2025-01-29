@@ -2,10 +2,14 @@
 # cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M20000 -R 'span[hosts=1] select[mem>20000] rusage[mem=20000]' -J GATK_varfilt -o log/%J_GATK_varfilt.out -e log/%J_GATK_varfilt.err 'bash src/03b_PTATO_GATK_VariantFiltration.sh'
 
 # dirs
-curr_id=PD63118_49686
-data_dir=data/resolveome/DNA/$curr_id/vcf/
-out_dir=out/GATK/VariantFiltration/$curr_id/
-mkdir -p $out_dir $data_dir
+donor_id=PD63118
+out_dir=out/GATK/VariantFiltration/$donor_id/
+
+nextflow run ../nextflow/nf-gatk \
+  --samplesheet data/resolveome/DNA/samplesheet_local.csv \
+  --fasta /lustre/scratch125/casm/team268im/fa8/117/PTA_49686/PTATO/resources/hg38/Homo_sapiens.GRCh38.dna_sm.toplevel.fa \
+  -resume
+
 
 # modules
 module load bcftools-1.9/python-3.11.6
@@ -17,9 +21,9 @@ filter_variants() {
   local output_vcf="$2"
   
   gatk VariantFiltration \
-    --R /lustre/scratch125/casm/team268im/fa8/117/PTA_49686/PTATO/resources/hg38/Homo_sapiens.GRCh38.dna_sm.toplevel.fa \
-    --V "$input_vcf" \
-    -O "$output_vcf" \
+    --reference /lustre/scratch125/casm/team268im/fa8/117/PTA_49686/PTATO/resources/hg38/Homo_sapiens.GRCh38.dna_sm.toplevel.fa \
+    --variant "$input_vcf" \
+    --output "$output_vcf" \
     --filter-name 'SNP_LowQualityDepth' \
     --filter-expression 'QD < 2.0' \
     --filter-name 'SNP_MappingQuality' \
@@ -42,8 +46,8 @@ filter_variants() {
     --filter-expression 'MQ0 >= 4 && ((MQ0/(1.0 * DP)) > 0.1)' \
 	  --filter-name 'SNP_HaplotypeScoreHigh' \
     --filter-expression 'HaplotypeScore > 13.0' \
-    -cluster 3 \
-    -window 10
+    --cluster-size 3 \
+    --cluster-window-size 10
 }
 
 # run
@@ -67,5 +71,5 @@ grep -v '#' | cut -f7 | sort | uniq -c | awk '{print $2 "\t" $1}' \
 >> $out_dir/filtering_summary.tsv
 
 # stage for PTATO pipeline
-mkdir -p out/ptato/vcfs/$curr_id/
-cp $out_dir/final.all.sorted.filtered.vcf.gz* out/ptato/vcfs/$curr_id/
+mkdir -p out/ptato/vcfs/$donor_id/
+cp $out_dir/final.all.sorted.filtered.vcf.gz* out/ptato/vcfs/$donor_id/

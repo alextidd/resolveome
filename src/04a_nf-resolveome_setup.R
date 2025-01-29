@@ -4,7 +4,7 @@
 library(magrittr)
 
 # samplesheet
-ss_bams <- readr::read_tsv("data/resolveome/DNA/samplesheet.tsv")
+ss_bams <- readr::read_csv("data/resolveome/DNA/samplesheet_irods.csv")
 ss_muts <- readr::read_tsv("data/nanoseq/samplesheet.tsv")
 
 # dirs

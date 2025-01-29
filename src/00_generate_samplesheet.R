@@ -8,9 +8,6 @@ wd <- getwd()
 data_dir <- "data/resolveome/DNA/"
 dir.create(data_dir)
 
-# initiate samplesheet list
-ss <- list()
-
 # curr pdid
 donor_id_i <- "PD63118"
 
@@ -62,52 +59,61 @@ plate3 %>%
                  rna_plex_n, ".cram")) %>%
   readr::write_csv("data/resolveome/RNA/samplesheet_irods.csv")
 
+# initiate samplesheet list
+ss_ls <- list()
+
 # samplesheet 49686 (19 cells)
-ss[["49686"]] <-
+ss_ls[["49686"]] <-
   tibble::tibble(
     run = "49686",
     lane_n = "4-5",
-    plex_n = seq(1, 19)) %>%
+    plex_n = seq(1, 19),
+    seq_type = "WGS") %>%
   dplyr::transmute(
-    run, plex_n, lane_n,
+    run, plex_n, lane_n, seq_type,
     bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/",
                  "lane", lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#",
                  plex_n, ".cram"))
 
 # samplesheet 49882 (80 cells)
-ss[["49882"]] <-
+ss_ls[["49882"]] <-
   tibble::tibble(
     run = "49882",
-    plex_n = seq(1, 80)) %>%
+    plex_n = seq(1, 80),
+    seq_type = "WGS") %>%
   dplyr::transmute(
-    run, plex_n,
+    run, plex_n, seq_type,
     bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/plex",
                  plex_n, "/", run, "#", plex_n, ".cram"))
 
 # samplesheet 49900 (80 cells with bait capture)
-ss[["49900"]] <-
+ss_ls[["49900"]] <-
   tibble::tibble(
     run = "49900", 
     plex_n = seq(1, 80),
-    lane_n = "2") %>%
+    lane_n = "2",
+    seq_type = "TGS") %>%
   dplyr::transmute(
-    run, plex_n, lane_n,
+    run, plex_n, lane_n, seq_type,
     bam = paste0("/seq/illumina/runs/", substr(run, 1, 2), "/", run, "/lane",
                  lane_n, "/plex", plex_n, "/", run, "_", lane_n, "#", plex_n,
                  ".cram"))
 
 # combine
 ss <-
-  ss %>%
+  ss_ls %>%
   dplyr::bind_rows() %>%
-  dplyr::mutate(donor_id = paste0(donor_id_i, "_", run),
-                id = paste0("plex", plex_n))
+  dplyr::mutate(donor_id = donor_id_i,
+                id = paste0(run, "_plex", plex_n),
+                out_bam = file.path(wd, data_dir, seq_type, donor_id,
+                                    paste0(id, ".bam")))
 
 # write irods samplesheet
-ss %>% readr::write_csv(file.path(data_dir, "/samplesheet_irods.csv"))
+ss %>%
+  readr::write_csv(file.path(data_dir, "/samplesheet_irods.csv"))
 
 # write local samplesheet
 ss %>%
-  dplyr::mutate(bam = file.path(wd, data_dir, donor_id, id, "bam",
-                                paste0(id, ".bam"))) %>%
+  dplyr::mutate(bam = out_bam) %>%
+  dplyr::select(-out_bam) %>%
   readr::write_csv(file.path(data_dir, "/samplesheet_local.csv"))

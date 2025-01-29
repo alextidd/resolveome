@@ -8,7 +8,7 @@ ss <-
 
 # load regions
 ig_tcr <-
-  readr::read_tsv("out/vdj_reconstruction/ig_tcr_genes.tsv") %>%
+  readr::read_tsv("out/vdj_reconstruction/regions/ig_tcr_genes.tsv") %>%
   dplyr::mutate(chr = as.character(chr))
 ig_tcr_pos <-
   ig_tcr %>%
@@ -19,7 +19,7 @@ ig_tcr_pos <-
 purrr::walk2(ss$id, ss$donor_id, function(id_i, donor_id) {
   base_dir <- paste0("out/vdj_reconstruction/", donor_id, "/", id_i)
   dir.create(paste0(base_dir, "/plots"), showWarnings = FALSE)
-  
+
   print(paste(donor_id, id_i))
 
   print("load mean cov per gene")

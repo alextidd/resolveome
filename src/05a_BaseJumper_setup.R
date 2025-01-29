@@ -11,9 +11,11 @@ bam_dir <- "data/resolveome/DNA/"
 # columns: biosampleName, read1, read2, groups, isbulk, bam
 ss_tmp <-
   readr::read_tsv("out/nf-resolveome/PD63118/samplesheet.tsv") %>%
+  dplyr::filter(run %in% c("49686", "49882")) %>%
   dplyr::transmute(
     biosampleName = id,
-    bam = file.path(wd, bam_dir, donor_id, id, "bam", paste0(id, ".bam")),
+    bam = file.path(wd, bam_dir, "WGS", gsub("_.*", "", donor_id),
+                    paste0(run, "_", id, ".bam")),
     groups = donor_id, read1 = NA, read2 = NA,
     isbulk = FALSE)
 
