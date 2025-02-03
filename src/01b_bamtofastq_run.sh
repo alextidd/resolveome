@@ -5,10 +5,13 @@
 wd=$(pwd)
 mkdir -p out/bamtofastq/
 
-# generate samplesheet
-cat data/resolveome/DNA/samplesheet_local.csv |
-awk -F',' 'BEGIN {OFS=","; print "mapped,index,sample_id,file_type"} NR>1 {print $5, $5 ".bai", $7, "bam"}' \
-> out/bamtofastq/samplesheet.csv
+# modules
+module load singularity/3.11.4
+
+# # generate samplesheet
+# cat data/resolveome/DNA/samplesheet_local.csv |
+# awk -F',' 'BEGIN {OFS=","; print "mapped,index,sample_id,file_type"} NR>1 {print $5, $5 ".bai", $7, "bam"}' \
+# > out/bamtofastq/samplesheet.csv
 
 # run
 (
@@ -18,4 +21,5 @@ awk -F',' 'BEGIN {OFS=","; print "mapped,index,sample_id,file_type"} NR>1 {print
     --input samplesheet.csv \
     --outdir . \
     -w $wd/work/bamtofastq/ \
+    -resume
 )
