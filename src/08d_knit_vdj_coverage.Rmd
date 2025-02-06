@@ -11,12 +11,11 @@ output:
     toc_collapsed: true
     toc_depth: 4
     theme: lumen
-    css: "styles.css" # Link to your custom CSS file
 ---
 
 
 ```{r setup, include = F, message = F, warning = F, echo = F}
-# rmarkdown::render('src/08d_knit_VDJ_coverage.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_reconstruction/')
+# rmarkdown::render('src/08d_knit_vdj_coverage.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_reconstruction/')
 
 # chunk options
 knitr::opts_knit$set(root.dir = "../")
@@ -33,16 +32,17 @@ library(magrittr)
 wd <- getwd()
 plots <-
   system(paste0("ls ", wd,
-                "/out/vdj_reconstruction/PD63118_49882/plex*/plots/plex*.png"),
+                "/out/vdj_reconstruction/PD63118/*/plots/*_binned_cov.png"),
          intern = TRUE) %>%
   tibble::tibble(plot = .) %>%
   dplyr::mutate(name = basename(plot) %>% tools::file_path_sans_ext()) %>%
   tidyr::separate_wider_delim(name, delim = "_", cols_remove = FALSE,
-                              names = c("id", "chr", "class", "type"),
+                              names = c("run", "id", "chr", "class", "type"),
                               too_many = "merge") %>%
   dplyr::mutate(plex_n = as.numeric(gsub("plex", "", id)),
-                id = id %>% forcats::fct_reorder(plex_n)) %>%
-  dplyr::arrange(plex_n) %>%
+                id = paste0(run, "_", id)) %>%
+  dplyr::arrange(run, plex_n) %>%
+  dplyr::mutate(id = forcats::fct_inorder(id)) %>%
   {split(., .$id)} %>%
   purrr::map(~ split(.x, .x$class))
 
