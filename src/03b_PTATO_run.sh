@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M20000 -R 'span[hosts=1] select[mem>20000] rusage[mem=20000]' -J ptato -o log/ptato_%J.out -e log/ptato_%J.err 'bash src/03c_PTATO_run.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M20000 -R 'span[hosts=1] select[mem>20000] rusage[mem=20000]' -J ptato -o log/ptato_%J.out -e log/ptato_%J.err 'bash src/03b_PTATO_run.sh'
 
 # dirs
 wd=$(pwd)

@@ -4,6 +4,9 @@
 # dir
 wd=$(pwd)
 
+# modules
+module load singularity/3.11.4
+
 # run
 (
   cd out/nf-gatk/
