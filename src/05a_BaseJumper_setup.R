@@ -8,17 +8,21 @@ wd <- getwd()
 bam_dir <- "data/resolveome/DNA/"
 fastq_dir <- paste0(wd, "/out/bamtofastq/reads/")
 
-# create bj-wgs samplesheet
+# create bj-wgs/bj-wes samplesheets
 # columns: biosampleName, read1, read2
 ss <-
   readr::read_csv("out/bamtofastq/samplesheet.csv") %>%
-  dplyr::filter(grepl("49686|49882", sample_id)) %>%
   dplyr::transmute(
     biosampleName = sample_id,
     read1 = file.path(fastq_dir, paste0(sample_id, "_1.merged.fastq.gz")),
     read2 = file.path(fastq_dir, paste0(sample_id, "_2.merged.fastq.gz"))) %>%
   dplyr::filter(file.exists(read1), file.exists(read2))
-ss %>% readr::write_csv("out/BaseJumper/bj-wgs/samplesheet.csv")
+ss %>%
+  dplyr::filter(grepl("^49686|^49882", biosampleName)) %>%
+  readr::write_csv("out/BaseJumper/bj-wgs/samplesheet.csv")
+ss %>%
+  dplyr::filter(grepl("^49900", biosampleName)) %>%
+  readr::write_csv("out/BaseJumper/bj-wes/samplesheet.csv")
 
 # create bj-somatic-variantcalling samplesheet
 # columns: biosampleName, read1, read2, groups, isbulk, bam

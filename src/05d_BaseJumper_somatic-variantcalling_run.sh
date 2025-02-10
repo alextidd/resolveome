@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J bj-somatic-variantcalling -o log/%J_bj-somatic-variantcalling.out -e log/%J_bj-somatic-variantcalling.err 'bash src/05b_BaseJumper_wgs_run.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J bj-somatic-variantcalling -o log/%J_bj-somatic-variantcalling.out -e log/%J_bj-somatic-variantcalling.err 'bash src/05d_BaseJumper_somatic-variantcalling_run.sh'
 
 # dirs
 wd=$(pwd)

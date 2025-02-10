@@ -11,12 +11,12 @@ module load singularity
 (
   cd out/BaseJumper/bj-wgs
   nextflow run $wd/../nextflow/external/BaseJumper/bj-wgs \
-    --input_csv /lustre/scratch125/casm/team268im/at31/resolveome/out/BaseJumper/bj-wgs/samplesheet.csv \
+    --input_csv samplesheet.csv \
     --publish_dir ./ \
     --sentieon_license /lustre/scratch125/casm/team268im/at31/nextflow/external/BaseJumper/bj-wgs/sentieon_eval.lic \
     -c ~/.nextflow/config \
     -c $wd/config/bj-wgs.config \
-    -w $wd/work/BaseJumper/ \
+    -w $wd/work/BaseJumper/bj-wgs/ \
     -profile singularity \
     --architecture "x86_64" \
     --dnascope_model_selection bioskryb129 \
