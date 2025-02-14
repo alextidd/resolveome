@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q normal -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J nf-gatk -o log/%J_nf-gatk.out -e log/%J_nf-gatk.err 'bash src/02b_nf-gatk_run.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J nf-gatk -o log/%J_nf-gatk.out -e log/%J_nf-gatk.err 'bash src/02b_nf-gatk_run.sh'
 
 # dir
 wd=$(pwd)
