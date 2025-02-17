@@ -13,7 +13,7 @@ module load singularity/3.11.4
 # awk -F',' 'BEGIN {OFS=","; print "mapped,index,sample_id,file_type"} NR>1 {print $5, $5 ".bai", $7, "bam"}' \
 # > out/bamtofastq/samplesheet.csv
 
-# run
+# run on DNA
 (
   cd out/bamtofastq/
   nextflow run nf-core/bamtofastq \
@@ -23,3 +23,5 @@ module load singularity/3.11.4
     -w $wd/work/bamtofastq/ \
     -resume
 )
+
+# run on RNA

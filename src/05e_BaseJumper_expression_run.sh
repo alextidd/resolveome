@@ -6,9 +6,7 @@ wd=$(pwd)
 # modules
 module load singularity
 
-# run 
-
-# run bj-wgs
+# run bj-expression
 (
   cd out/BaseJumper/bj-expression/
   nextflow run $wd/../nextflow/external/BaseJumper/bj-expression \
