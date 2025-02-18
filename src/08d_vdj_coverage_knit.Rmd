@@ -15,7 +15,7 @@ output:
 
 
 ```{r setup, include = F, message = F, warning = F, echo = F}
-# rmarkdown::render('src/08d_knit_vdj_coverage.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_reconstruction/')
+# rmarkdown::render('src/08d_vdj_coverage_knit.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_reconstruction/')
 
 # chunk options
 knitr::opts_knit$set(root.dir = "../")

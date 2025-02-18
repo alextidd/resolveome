@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M20000 -R 'span[hosts=1] select[mem>20000] rusage[mem=20000]' -J vdj_mosdepth -o log/%J_vdj_mosdepth.out -e log/%J_vdj_mosdepth.err 'bash src/08b_run_vdj_coverage.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M20000 -R 'span[hosts=1] select[mem>20000] rusage[mem=20000]' -J vdj_coverage -o log/%J_vdj_coverage.out -e log/%J_vdj_coverage.err 'bash src/08b_vdj_coverage_run.sh'
 
 # run mosdepth
 wd=$(pwd)
