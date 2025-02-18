@@ -56,7 +56,7 @@ common_snps <-
 # extract common snps that are heterozygous
 # 0.3 < VAF < 0.7 and DP > 50
 caveman_snps <-
-  "/nfs/irods-cgp-sr13-sdh/intproj/3438/sample/PD63118b_lo0009/PD63118b_lo0009.v1.caveman_c.snps.vcf.gz" %>%
+  "/nfs/cancer_ref01/nst_links/live/3464/PD63118b_lo0044/PD63118b_lo0044.caveman_c.snps.vcf.gz" %>%
   readr::read_tsv(comment = "##") %>%
   dplyr::mutate(
     DP = strsplit(INFO, ";") %>% purrr::map_chr(~ .x[grepl("^DP=", .x)]) %>%
