@@ -2,11 +2,11 @@
 library(magrittr)
 
 # dirs
-dir.create("out/vdj_reconstruction/regions/", showWarnings = FALSE)
+dir.create("out/vdj_coverage/regions/", showWarnings = FALSE)
 
 # load data
 df <-
-  readr::read_tsv("data/vdj_reconstruction/ig_tcr_genes_pseudogenes.tsv") %>%
+  readr::read_tsv("data/vdj_coverage/ig_tcr_genes_pseudogenes.tsv") %>%
   janitor::clean_names() %>%
   dplyr::select(chr = chromosome_scaffold_name, start = gene_start_bp,
                 end = gene_end_bp, gene = gene_name, everything()) %>%
@@ -17,12 +17,12 @@ df <-
 
 # write tsv of genes
 df %>%
-  readr::write_tsv("out/vdj_reconstruction/regions/ig_tcr_genes.tsv")
+  readr::write_tsv("out/vdj_coverage/regions/ig_tcr_genes.tsv")
 
 # write bed of genes
 df %>%
   dplyr::select(chr, start, end, gene) %>%
-  readr::write_tsv("out/vdj_reconstruction/regions/ig_tcr_genes.bed",
+  readr::write_tsv("out/vdj_coverage/regions/ig_tcr_genes.bed",
                    col_names = FALSE)
 
 # summarise BCR/TCR regions per chr
@@ -35,10 +35,10 @@ df_regions <-
 # write bed of regions
 df_regions %>%
   dplyr::select(chr, start, end, class) %>%
-  readr::write_tsv("out/vdj_reconstruction/regions/ig_tcr_regions.bed",
+  readr::write_tsv("out/vdj_coverage/regions/ig_tcr_regions.bed",
                    col_names = FALSE)
 
 # write samplesheet
 readr::read_csv("data/resolveome/DNA/samplesheet_local.csv") %>%
   dplyr::filter(seq_type == "WGS") %>%
-  readr::write_csv("out/vdj_reconstruction/samplesheet.csv")
+  readr::write_csv("out/vdj_coverage/samplesheet.csv")

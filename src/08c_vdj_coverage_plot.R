@@ -9,11 +9,11 @@ library(scales)
 
 # load samplesheet
 ss <-
-  readr::read_csv("out/vdj_reconstruction/samplesheet.csv")
+  readr::read_csv("out/vdj_coverage/samplesheet.csv")
 
 # load regions
 ig_tcr_regions <-
-  readr::read_tsv("out/vdj_reconstruction/regions/ig_tcr_regions.bed",
+  readr::read_tsv("out/vdj_coverage/regions/ig_tcr_regions.bed",
                   col_names = c("chr", "start", "end", "type")) %>%
   dplyr::mutate(chr = as.character(chr), region = paste0(chr, "_", type))
 ig_tcr_regions_pos <-
@@ -21,7 +21,7 @@ ig_tcr_regions_pos <-
   dplyr::group_by(chr, start, end, region, type) %>%
   dplyr::reframe(pos = start:end)
 ig_tcr_pos <-
-  readr::read_tsv("out/vdj_reconstruction/regions/ig_tcr_genes.tsv") %>%
+  readr::read_tsv("out/vdj_coverage/regions/ig_tcr_genes.tsv") %>%
   dplyr::mutate(chr = as.character(chr)) %>%
   dplyr::group_by(chr, gene, start, end) %>%
   dplyr::reframe(pos = start:end) %>%
@@ -32,7 +32,7 @@ ig_tcr <-
 
 # make plots
 purrr::walk2(ss$id, ss$donor_id, function(id_i, donor_id) {
-  base_dir <- paste0("out/vdj_reconstruction/", donor_id, "/", id_i, "/")
+  base_dir <- paste0("out/vdj_coverage/", donor_id, "/", id_i, "/")
   dir.create(paste0(base_dir, "/plots"), showWarnings = FALSE)
 
   print(paste(donor_id, id_i))

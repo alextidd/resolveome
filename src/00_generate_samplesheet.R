@@ -5,7 +5,7 @@ library(magrittr)
 
 # dirs
 wd <- getwd()
-data_dir <- "data/resolveome/"
+data_dir <- paste0(wd, "/data/resolveome/")
 
 # read in manifests
 manifest <-
@@ -107,10 +107,18 @@ ss <-
     sanger_sample_id, supplier_sample_name, manifest_file,
     bam)
 
-# write irods samplesheet
+# write samplesheets
 ss %>%
   readr::write_csv(paste0(data_dir, "/samplesheet_irods.csv"))
-ss %>%
+ss_local <-
+  ss %>%
   dplyr::mutate(bam = paste0(data_dir, "/", donor_id, "/", id, "/bam/", id,
-                             ".bam")) %>%
+                             ".bam"))
+ss_local %>%
   readr::write_csv(paste0(data_dir, "/samplesheet_local.csv"))
+
+# write samplesheet for testing (3 samples from each run)
+ss_local %>%
+  dplyr::group_by(seq_type, run_id, lane) %>%
+  dplyr::filter(dplyr::row_number() < 4) %>%
+  readr::write_csv("out/test/samplesheet.csv")

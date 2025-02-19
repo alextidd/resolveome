@@ -4,12 +4,14 @@
 library(magrittr)
 
 # samplesheet
-ss_bams <- readr::read_csv("data/resolveome/DNA/samplesheet_irods.csv")
+ss_bams <-
+  readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
+  dplyr::filter(seq_type %in% c("dna", "dnahyb"))
 ss_muts <- readr::read_tsv("data/nanoseq/samplesheet.tsv")
 
 # dirs
 donor_id_i <- "PD63118"
-out_dir <- paste0("out/nf-resolveome/", donor_id_i, "/")
+out_dir <- "out/nf-resolveome/"
 dir.create(out_dir, showWarnings = FALSE)
 wd <- getwd()
 
@@ -55,6 +57,7 @@ common_snps <-
 # get a caveman snp file from a sample with high coverage
 # extract common snps that are heterozygous
 # 0.3 < VAF < 0.7 and DP > 50
+# PD63118b_lo0044 has the highest coverage at 68X according to picard
 caveman_snps <-
   "/nfs/cancer_ref01/nst_links/live/3464/PD63118b_lo0044/PD63118b_lo0044.caveman_c.snps.vcf.gz" %>%
   readr::read_tsv(comment = "##") %>%
@@ -87,7 +90,7 @@ nanoseq_muts <-
   type_mutations()
 
 # write mutations
-muts_file <- file.path(wd, out_dir, "mutations.tsv")
+muts_file <- file.path(wd, out_dir, donor_id_i, "mutations.tsv")
 muts_and_snps <-
   list("caveman_snps" = caveman_snps,
        "nanoseq_mutations" = nanoseq_muts) %>%
@@ -98,4 +101,4 @@ muts_and_snps %>%
 # combine and write
 ss <-
   ss_bams %>% dplyr::mutate(mutations = muts_file)
-ss %>% readr::write_csv(paste0(out_dir, "/samplesheet.csv"))
+ss %>% readr::write_csv(file.path(out_dir, "samplesheet.csv"))

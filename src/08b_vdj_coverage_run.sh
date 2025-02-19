@@ -4,7 +4,7 @@
 # run mosdepth
 wd=$(pwd)
 (
-  cd out/vdj_reconstruction/
+  cd out/vdj_coverage/
   nextflow run $wd/../nextflow/nf-mosdepth \
     --samplesheet samplesheet.csv \
     --bait_set regions/ig_tcr_genes.bed \
@@ -21,16 +21,16 @@ wd=$(pwd)
 module load bedtools2-2.29.0/python-3.10.10
 module load tabix/1.18
 
-for bed in out/vdj_reconstruction/PD63118/*/mosdepth/*.per-base.bed.gz ; do
+for bed in out/vdj_coverage/PD63118/*/mosdepth/*.per-base.bed.gz ; do
   echo $bed
   bedtools intersect \
     -a <(zcat $bed) \
-    -b out/vdj_reconstruction/regions/ig_tcr_genes.bed \
+    -b out/vdj_coverage/regions/ig_tcr_genes.bed \
     -wa -wb \
   | bgzip > ${bed/.bed.gz/.ig_tcr_genes.bed.gz}
   bedtools intersect \
     -a <(zcat $bed) \
-    -b out/vdj_reconstruction/regions/ig_tcr_regions.bed \
+    -b out/vdj_coverage/regions/ig_tcr_regions.bed \
     -wa -wb \
   | bgzip > ${bed/.bed.gz/.ig_tcr_regions.bed.gz}
   echo "Done!"
