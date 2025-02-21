@@ -10,7 +10,7 @@ wd=$(pwd)
   nextflow run $wd/../nextflow/nf-resolveome \
     --samplesheet samplesheet.csv \
     --bait_set $wd/data/immune_panel/Probes_merged_ok_combined_Sanger_Immune-v1_TE-91661256_hg19.bed \
-    --genes TNFRSF14,CD274 \
+    --genes TNFRSF14,CD274,LTB,TNFAIP3,TET2,DUSP2,CCR6,DNMT3A,RFTN1,CBL,RASA2,CXCR3,ACTG1,KLHL6 \
     --fasta /lustre/scratch124/casm/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCh38_full_analysis_set_plus_decoy_hla/genome.fa \
     --location local \
     --bamtofastq false \

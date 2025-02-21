@@ -19,12 +19,19 @@ module load singularity/3.11.4
     -resume
 )
 
-NFCORE_BAMTOFASTQ:BAMTOFASTQ:PRE_CONVERSION_QC:SAMTOOLS_IDXSTATS (plate1_wellC2_dna_run49686)
+# run multiqc
+mkdir out/multiqc/
+multiqc out/bamtofastq/ \
+  -f \
+  -o out/multiqc/dna \
+  --ignore-samples "*rna*" --ignore-samples "*dnayb*"
 
-for id in plate1_wellC4_dna_run49686 plate1_wellE3_dna_run49686 plate3_wellA2_dna_run49882 plate3_wellB2_dna_run49882 plate3_wellC2_dna_run49882 ; do
-  (
-    echo $id
-    cd $id/bam
-    samtools index $id.bam
-  )
-done
+multiqc out/bamtofastq/ \
+  -f \
+  -o out/multiqc/dnahyb \
+  --ignore-samples "_rna_" \
+  --ignore-samples "_dna_"
+multiqc out/bamtofastq/ \
+  -o out/multiqc/rna \
+  --ignore-samples "_dna_" \
+  --ignore-samples "_dnahyb_"

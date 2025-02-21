@@ -7,7 +7,6 @@ library(magrittr)
 ss_bams <-
   readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
   dplyr::filter(seq_type %in% c("dna", "dnahyb"))
-ss_muts <- readr::read_tsv("data/nanoseq/samplesheet.tsv")
 
 # dirs
 donor_id_i <- "PD63118"
@@ -74,18 +73,10 @@ caveman_snps <-
   type_mutations() %>%
   dplyr::distinct()
 
-# get mutations from exome and targeted nanoseq
+# get mutations
 nanoseq_muts <-
-  ss_muts %>%
-  purrr::pmap(function(muts_file, seq_type) {
-    readr::read_tsv(muts_file) %>%
-      dplyr::mutate(seq_type = seq_type)
-  }) %>%
-  dplyr::bind_rows() %>%
-  dplyr::mutate(donor_id = stringr::str_sub(sampleID, 1, 7)) %>%
-  dplyr::filter(donor_id == donor_id_i) %>%
-  dplyr::rename(alt = mut) %>%
-  dplyr::distinct(donor_id, chr, pos, ref, alt) %>%
+  readr::read_csv("data/nanoseq/mutations2genotype.csv") %>%
+  dplyr::mutate(donor_id = donor_id_i) %>%
   # type the mutations
   type_mutations()
 
@@ -99,6 +90,6 @@ muts_and_snps %>%
   readr::write_tsv(muts_file)
 
 # combine and write
-ss <-
-  ss_bams %>% dplyr::mutate(mutations = muts_file)
-ss %>% readr::write_csv(file.path(out_dir, "samplesheet.csv"))
+ss_bams %>%
+  dplyr::mutate(mutations = muts_file) %>%
+  readr::write_csv(file.path(out_dir, "samplesheet.csv"))

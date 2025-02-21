@@ -20,6 +20,6 @@ module load singularity
     --architecture "x86_64" \
     --dnascope_model_selection bioskryb129 \
     -profile singularity \
-    --process.containerOptions '--bind /lustre,/nfs,/data,/software' \
-    -resume
+    -resume \
+    -N at31@sanger.ac.uk
 )
