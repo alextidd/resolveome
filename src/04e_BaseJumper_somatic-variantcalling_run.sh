@@ -12,7 +12,7 @@ export SENTIEON_LICENSE=$wd/../nextflow/external/BaseJumper/bj-somatic-variantca
 
 # run bj-somatic-variantcalling
 (
-  cd out/BaseJumper/bj-somatic-variantcalling/
+  cd out/BaseJumper/bj-wes-somatic-variantcalling/
   
   # run
   # Viren: switch --variant_workflow_type to somatic_heuristic_filter - doesn't 
@@ -20,7 +20,7 @@ export SENTIEON_LICENSE=$wd/../nextflow/external/BaseJumper/bj-somatic-variantca
   nextflow run $wd/../nextflow/external/BaseJumper/bj-somatic-variantcalling \
     --input_csv samplesheet.csv \
     --publish_dir ./ \
-    --variant_workflow_type match_normal \
+    --variant_workflow_type somatic_heuristic_filter \
     --is_bam \
     -c ~/.nextflow/config \
     -c $wd/config/bj-somatic-variantcalling.config \

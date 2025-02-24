@@ -13,12 +13,10 @@ module load singularity
   nextflow run $wd/../nextflow/external/BaseJumper/bj-expression \
     --input_csv samplesheet.csv \
     --publish_dir ./ \
-    -c ~/.nextflow/config \
-    -c $wd/config/bj-expression.config \
+    --genome GRCh38 \
+    --tmp_dir $TMPDIR \
     -w $wd/work/BaseJumper/bj-expression/ \
-    --architecture "x86_64" \
-    --dnascope_model_selection bioskryb129 \
+    -c $wd/config/bj-expression.config \
     -profile singularity \
-    --process.containerOptions '--bind /lustre,/nfs,/data,/software' \
-    -resume
+    --process.containerOptions '--bind /lustre,/nfs,/data,/software'
 )

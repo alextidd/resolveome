@@ -12,7 +12,7 @@ module load singularity
   cd out/BaseJumper/bj-wes/
   nextflow run $wd/../nextflow/external/BaseJumper/bj-wes \
     --input_csv samplesheet.csv \
-    --publish_dir ./ \
+    --publish_dir PD63118 \
     -c ~/.nextflow/config \
     -c $wd/config/bj-wes.config \
     -w $wd/work/BaseJumper/bj-wes/ \

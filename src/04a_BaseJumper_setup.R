@@ -42,18 +42,26 @@ ss_pta <-
   dplyr::filter(seq_type == "dnahyb") %>%
   dplyr::transmute(
     biosampleName = id, groups = donor_id,
-    read1 = NA, read2 = NA,
+    read1 = "", read2 = "",
     isbulk = FALSE,
     bam = paste0(wd, "/out/BaseJumper/bj-wes/_250219_235359/secondary_analyses/alignment/", id, ".bam"))
 ss_bulk <-
   tibble::tibble(
-    id = "PD63118", groups = "PD63118",
-    read1 = NA, read2 = NA,
+    biosampleName = "PD63118", groups = "PD63118",
+    read1 = "", read2 = "",
     isbulk = TRUE,
     bam = match_normal_staged
   )
-dplyr::bind_rows(ss_pta, ss_bulk) %>%
+ss_pta %>%
   dplyr::filter(file.exists(bam)) %>%
   readr::write_csv("out/BaseJumper/bj-somatic-variantcalling/samplesheet.csv")
 
-# create
+# create bj-expression samplesheet
+ss %>%
+  dplyr::filter(seq_type == "rna") %>%
+  dplyr::transmute(
+    biosampleName = id,
+    read1 = file.path(fastq_dir, paste0(id, "_1.merged.fastq.gz")),
+    read2 = file.path(fastq_dir, paste0(id, "_2.merged.fastq.gz"))) %>%
+  dplyr::filter(file.exists(read1), file.exists(read2)) %>%
+  readr::write_csv("out/BaseJumper/bj-expression/samplesheet.csv")

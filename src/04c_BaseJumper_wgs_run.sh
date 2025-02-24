@@ -23,3 +23,34 @@ module load singularity
     #-resume \
     -N at31@sanger.ac.uk
 )
+
+
+# dirs
+wd=$(pwd)
+
+# modules
+module load singularity
+
+# sentieon license
+export SENTIEON_LICENSE=$wd/../nextflow/external/BaseJumper/bj-somatic-variantcalling/sentieon_eval.lic 
+
+# run bj-wgs + bj-somatic-variantcalling
+(
+  cd out/BaseJumper/bj-somatic-variantcalling/
+  
+  # run
+  # Viren: switch --variant_workflow_type to somatic_heuristic_filter - doesn't 
+  # require a matched normal (for bj-somatic-variantcalling)
+  nextflow run $wd/../nextflow/external/BaseJumper/bj-somatic-variantcalling \
+    --input_csv samplesheet.csv \
+    --publish_dir ./ \
+    --variant_workflow_type somatic_heuristic_filter \
+    --is_bam \
+    -c ~/.nextflow/config \
+    -c $wd/config/bj-somatic-variantcalling.config \
+    -c $wd/config/basejumper.config \
+    -w $wd/work/BaseJumper/bj-somatic-variantcalling/ \
+    -profile singularity \
+    --architecture "x86_64" \
+    -resume
+)
