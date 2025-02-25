@@ -1,4 +1,6 @@
 # libraries
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M32000 -R 'span[hosts=1] select[mem>32000] rusage[mem=32000]' -J 09_ImmuneLENS_run -o log/%J_09_ImmuneLENS_run.out -e log/%J_09_ImmuneLENS_run.err 'module load ISG/rocker/rver/4.4.0; export R_LIBS_USER=$HOME/R-tmp-4.4; Rscript src/09_ImmuneLENS_run.R'
+
 library(magrittr)
 library(ImmuneLENS)
 
@@ -8,61 +10,61 @@ Sys.setenv(PATH = paste(samtools_dir, Sys.getenv("PATH"), sep = ":"))
 
 # dirs
 out_dir <- "out/immunelens/"
+cov_dir <- file.path(out_dir, "cov/")
 dir.create(out_dir, showWarnings = FALSE)
+dir.create(cov_dir, showWarnings = FALSE)
 
 # samplesheet
 ss <-
   readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
   dplyr::filter(seq_type == "dna")
 
-# test bams
-# B cell: plate3_wellF2_dna_run49882
-# T cell: plate3_wellD2_dna_run49882
-test_bams <-
+# get bams
+bams <-
   ss %>%
-  dplyr::filter(id %in% c("plate3_wellF2_dna_run49882",
-                          "plate3_wellD2_dna_run49882")) %>%
   dplyr::pull(bam) %>%
   {purrr::set_names(., tools::file_path_sans_ext(basename(.)))}
 
-pdf("test.pdf")
-results <-
-  purrr::map(test_bams, function(test_bam) {
+# get scores
+scores <-
+  purrr::map2(names(bams), bams, function(id, bam) {
 
-  # test_id <- "plate3_wellA2_dna_run49882" ; test_bam <- paste0("/lustre/scratch125/casm/team268im/at31/resolveome/data/resolveome/PD63118/", test_id, "/bam/", test_id, ".bam")
-  # get coverage
-  TCRA.cov <- getCovFromBam_WGS(bamPath = test_bam, outPath = out_dir,
-                                vdj.gene = "TCRA", hg19_or_38 = "hg19")
-  TCRB.cov <- getCovFromBam_WGS(bamPath = test_bam, outPath = out_dir,
-                                vdj.gene = "TCRB", hg19_or_38 = "hg19")
-  TCRG.cov <- getCovFromBam_WGS(bamPath = test_bam, outPath = out_dir,
-                                vdj.gene = "TCRG", hg19_or_38 = "hg19")
-  IGH.cov <- getCovFromBam_WGS(bamPath = test_bam, outPath = out_dir,
-                               vdj.gene = "IGH", hg19_or_38 = "hg19")
+    print(id)
 
-  # load coverage
-  TCRA.df <- loadCov(TCRA.cov)
-  TCRB.df <- loadCov(TCRB.cov)
-  TCRG.df <- loadCov(TCRG.cov)
+    c("TCRA", "TCRB", "TCRG", "IGH") %>%
+      purrr::map(function(gene) {
 
-  # run T cell ExTRECT for TCRA, TCRB, TCRG using new WGS version
-  TCRA.out <- runImmuneLENS(vdj.region.df = TCRA.df, vdj.gene = "TCRA",
-                            hg19_or_38 = "hg19")
-  TCRB.out <- runImmuneLENS(vdj.region.df = TCRB.df, vdj.gene = "TCRB",
-                            hg19_or_38 = "hg19", median.thresh = 0)
-  TCRG.out <- runImmuneLENS(vdj.region.df = TCRG.df, vdj.gene = "TCRG",
+        print(gene)
+        ct <- ifelse(gene == "IGH", "bcell", "tcell")
+
+        # get cov
+        cov_file <-
+          getCovFromBam_WGS(bamPath = bam, outPath = cov_dir, vdj.gene = gene,
                             hg19_or_38 = "hg19")
 
-  # plot
-  plotImmuneLENS(vdj.region.df = TCRA.df, vdj.gene = "TCRA",
-                hg19_or_38 = "hg38", ylims = c(-1.5, 1)) %>% print()
-  plotImmuneLENS(vdj.region.df = TCRB.df, vdj.gene = "TCRB",
-                hg19_or_38 = "hg38", ylims = c(-1.5, 1)) %>% print()
-  plotImmuneLENS(vdj.region.df = TCRG.df, vdj.gene = "TCRG",
-                hg19_or_38 = "hg38", ylims = c(-1.5, 1)) %>% print()
+        # load cov
+        cov <- loadCov(cov_file)
 
-  # return
-  list(TCRA = TCRA.out, TCRB = TCRB.out, TCRG = TCRG.out)
+        # run T cell ExTRECT, catch errors
+        out <-
+          tryCatch(
+            runImmuneLENS(vdj.region.df = cov, vdj.gene = gene,
+                          hg19_or_38 = "hg19", median.thresh = 0),
+            error = function(e) {
+              message("Error caught: ", conditionMessage(e))
+              list(tibble::tibble(name = paste0(gene, ".", ct, ".fraction"),
+                                  value = NA) %>% tidyr::pivot_wider())
+            })
 
-})
-dev.off()
+        # return
+        tibble::tibble(
+          cell_fraction = out[[1]][, paste0(gene, ".", ct, ".fraction"), drop = TRUE],
+          celltype = ct, gene = gene, id = id)
+
+    }) %>%
+    dplyr::bind_rows()
+  }) %>%
+  dplyr::bind_rows()
+
+# save scores
+scores %>% readr::write_tsv(file.path(out_dir, "scores.tsv"))

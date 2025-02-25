@@ -17,6 +17,7 @@ export SENTIEON_LICENSE=$wd/../nextflow/external/BaseJumper/bj-expression/sentie
     --input_csv samplesheet.csv \
     --publish_dir PD63118 \
     --genome GRCh38 \
+    --skip_subsampling \
     --tmp_dir $TMPDIR \
     -w $wd/work/BaseJumper/bj-expression/ \
     -c $wd/config/bj-expression.config \
