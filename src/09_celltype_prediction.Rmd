@@ -1,0 +1,259 @@
+---
+title: "ResolveOME celltype prediction"
+author: "Alexandra Tidd"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    fig_width: 8
+    keep_md: true
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 4
+    theme: lumen
+---
+
+```{r setup, include = F, message = F, warning = F, echo = F}
+# rmarkdown::render('src/09_celltype_prediction.Rmd', output_file = 'celltype_prediction.html', output_dir = 'out/analysis/')
+
+# chunk options
+knitr::opts_knit$set(root.dir = "../")
+knitr::opts_chunk$set(warning = FALSE,
+                      dpi = 300,
+                      message = FALSE)
+
+# libraries
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+```
+
+Here, I will synthesise the data from...
+
+ - chromosomal dropout
+ - doublet detection
+ - celltype predictions from VDJ recombination
+ - celltype predictions from BaseJumper bj-expression (SingleR + HPCA)
+ - T and B cell fraction predictions from ImmuneLENS
+
+...to get a better understanding of the celltypes present in the ResolveOME
+dataset.
+
+First, we load the samplesheet with all metadata for the cells.
+
+```{r load_ss}
+# load samplesheet
+ss <-
+  readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
+  dplyr::mutate(run_id = as.character(run_id))
+ss_exp <-
+  ss %>%
+  dplyr::select(id, cell_id, seq_type) %>%
+  dplyr::group_by(id, cell_id) %>%
+  tidyr::expand_grid(name = c("celltype_SHM", "celltype_VDJ_recomb", "celltype_bj")) %>%
+  dplyr::ungroup()
+```
+
+Next, we load the data from the manual inspection of the cells. This includes
+whether we suspect them to be doublets or to have chromosomal dropout (based on
+inspection of the BAF plot of heterozygous SNPs), celltype predictions based on
+the inspection of VDJ recombination, and celltype predictions based on the 
+presence or absence of somatic hypermutation.
+
+```{r cts_man}
+cts <- list()
+cts$man <-
+  "data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv" %>%
+  readr::read_tsv() %>%
+  dplyr::select(cell_id, suspected_doublet, chr_dropout,
+                celltype_SHM, celltype_VDJ_recomb)
+```
+
+Next, we load the celltype predictions from BaseJumper, which uses SingleR to
+make predictions based on the Human Primary Cell Atlas (HPCA).
+
+```{r cts_bj}
+cts$bj <-
+  "out/BaseJumper/bj-expression/PD63118_250225_102304/tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv" %>%
+  readr::read_tsv() %>%
+  dplyr::left_join(ss, by = c("SampleId" = "id")) %>%
+  dplyr::select(cell_id, celltype_bj = Progenitor)
+```
+
+Next, we load the ImmuneLENS scores.
+
+```{r cts_il}
+cts$il <-
+  "out/immunelens/scores.tsv" %>%
+  readr::read_tsv() %>%
+  dplyr::left_join(ss) %>%
+  dplyr::transmute(cell_id, name = paste0("cell_frac_", gene), cell_fraction) %>%
+  tidyr::pivot_wider(id_cols = "cell_id", values_from = "cell_fraction")
+```
+
+Now, we combine all of these lines of evidence for celltype in each cell. We 
+subset this to only 'clean' cells as well - ie cells with no evidence of 
+chromosomal dropout or of being a doublet.
+
+```{r comb_preds}
+# combine preds
+cts <- Reduce(dplyr::full_join, cts)
+
+# get only 'clean' cells
+cts_clean <-
+  cts %>%
+  dplyr::filter(!suspected_doublet, !chr_dropout)
+
+# update samplesheet to only 'clean' cells
+ss_clean <-
+  ss %>%
+  dplyr::filter(cell_id %in% cts_clean$cell_id)
+```
+
+## ImmuneLENS predictions
+
+Now, we can plot the ImmuneLENS scores against the SHM / VDJ recombination-
+predicted celltype.
+
+```{r plot_vdj_vs_il}
+cts %>%
+  dplyr::filter(!chr_dropout) %>%
+  dplyr::mutate(
+    ct = dplyr::case_when(
+      celltype_VDJ_recomb == "B cell" & celltype_SHM == "not B mem" ~ "non-mem B cell",
+      celltype_VDJ_recomb == "B cell" & celltype_SHM == "B mem" ~ "mem B cell",
+      celltype_VDJ_recomb == "alpha-beta T cell" ~ celltype_VDJ_recomb,
+      TRUE ~ celltype_VDJ_recomb)) %>%
+  tidyr::pivot_longer(cols = dplyr::starts_with("cell_frac")) %>%
+  ggplot(aes(x = ct, y = value)) +
+  geom_boxplot(outlier.colour = NA) +
+  geom_jitter(height = 0, aes(colour = suspected_doublet)) +
+  facet_wrap(~ name)
+```
+
+Now, we can plot all celltype predictions next to each other.
+
+```{r plot_cts}
+p_dat <-
+  cts_clean %>%
+  dplyr::mutate(ct_VDJ = celltype_VDJ_recomb)
+
+p_ils <-
+  p_dat %>%
+  tidyr::pivot_longer(cols = dplyr::starts_with("cell_frac")) %>%
+  ggplot(aes(x = cell_id, y = name, fill = value)) +
+  geom_tile() +
+  scale_y_discrete(expand = c(0, 0)) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~ ct_VDJ, scales = "free_x", space = "free_x")
+
+p_cts <-
+  p_dat %>%
+  tidyr::pivot_longer(cols = dplyr::starts_with("celltype")) %>%
+  ggplot(aes(x = cell_id, y = name, fill = value)) +
+  geom_tile() +
+  scale_y_discrete(expand = c(0, 0)) +
+  guides(x = guide_axis(angle = -90)) +
+  facet_grid(~ ct_VDJ, scales = "free_x", space = "free_x")
+
+p_ils / p_cts
+```
+
+## Read and gene counts from RNA
+
+```{r read_and_gene_counts}
+# dirs
+bje_dir <- "out/BaseJumper/bj-expression/PD63118_250225_102304/"
+
+# load read counts
+read_counts <-
+  file.path(bje_dir, "read_counts/combined_read_counts.txt") %>%
+  readr::read_csv() %>%
+  dplyr::transmute(id = sample_name, n = reads, name = "n reads")
+
+# load gene counts
+gene_counts <-
+  file.path(bje_dir, "secondary_analyses/quantification_salmon/df_gene_counts_salmon.tsv") %>%
+  readr::read_tsv() %>%
+  dplyr::mutate(id = gsub("salmon_outdir_", "", File))
+gene_total_counts <-
+  gene_counts %>%
+  dplyr::group_by(id) %>%
+  dplyr::summarise(n = dplyr::n_distinct(gene_symbol_gene_id), name = "n genes")
+
+# combine counts
+counts <-
+  dplyr::bind_rows(read_counts, gene_total_counts) %>%
+  dplyr::left_join(ss)
+
+# plot all runs
+counts %>%
+  # add reads per cell for ordering
+  dplyr::left_join(read_counts %>% dplyr::select(id, reads = n)) %>%
+  ggplot(aes(x = reorder(id, -reads), y = n, fill = run_id)) +
+  geom_col() +
+  guides(x = guide_axis(angle = -90)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "") +
+  facet_wrap(~ name, scales = "free_y", ncol = 1) +
+  theme_bw()
+
+# compare the metrics between runs
+counts %>%
+  ggplot(aes(x = run_id, y = n, fill = run_id)) +
+  geom_boxplot(outlier.colour = NA) +
+  geom_jitter(height = 0) +
+  facet_wrap(~ name, scales = "free_y", ncol = 2) +
+  theme(legend.position = "none") +
+  theme_bw()
+
+# compare the same cells between the two runs
+counts %>%
+  dplyr::left_join(
+    counts %>%
+    dplyr::filter(name == "n reads") %>%
+    dplyr::group_by(cell_id) %>%
+    dplyr::summarise(reads = max(n))) %>%
+  dplyr::filter(plate == 3) %>%
+  ggplot(aes(x = reorder(cell_id, -reads), y = n, fill = run_id)) +
+  geom_col(position = "dodge") +
+  guides(x = guide_axis(angle = -90)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "") +
+  theme_bw() +
+  facet_grid(name ~ ., scales = "free_y")
+```
+
+```{r ct_markers}
+# get celltype curated markers from celltypist
+ct_markers <-
+  readr::read_tsv("../reference/celltypist/Basic_celltype_information.tsv") %>%
+  janitor::clean_names() %>%
+  tidyr::separate_longer_delim("curated_markers", delim = ", ") %>%
+  dplyr::rename(gene_symbol = curated_markers)
+
+# convert to matrix for heatmap
+p_dat <-
+  gene_counts %>%
+  # get only clean cells
+  dplyr::inner_join(ss_clean) %>%
+  # get curated markers
+  dplyr::inner_join(ct_markers) %>%
+  # aggregate by cell
+  dplyr::group_by(cell_id, gene_symbol) %>%
+  dplyr::mutate(count = sum(countsFromAbundanceNo, na.rm = TRUE))
+
+# plot heatmap
+p_dat %>%
+  ggplot(aes(x = cell_id, y = gene_symbol, fill = count)) +
+  geom_tile() +
+  facet_grid() +
+  guides(x = guide_axis(angle = -90)) +
+  facet_grid(high_hierarchy_cell_types ~ ., scales = "free_y", space = "free_y") +
+  theme_classic() +
+  theme(panel.spacing = unit(0, "lines"),
+        panel.background = element_rect(fill = "grey", color = NA)) +
+  scale_fill_viridis_c()
+```

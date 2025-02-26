@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M80000 -R 'span[hosts=1] select[mem>80000] rusage[mem=80000]' -J vdj_cov -o log/%J_vdj_cov.out -e log/%J_vdj_cov.err 'module load ISG/rocker/rver/4.4.0; export R_LIBS_USER=$HOME/R-tmp-4.4; Rscript src/08c_vdj_coverage_plot.R'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q long -M80000 -R 'span[hosts=1] select[mem>80000] rusage[mem=80000]' -J vdj_cov -o log/%J_vdj_cov.out -e log/%J_vdj_cov.err 'module load ISG/rocker/rver/4.4.0; export R_LIBS_USER=$HOME/R-tmp-4.4; Rscript src/07c_vdj_coverage_plot.R'
 
 # libraries
 library(magrittr)
