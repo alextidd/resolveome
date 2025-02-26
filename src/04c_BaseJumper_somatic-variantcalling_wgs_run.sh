@@ -7,8 +7,8 @@ wd=$(pwd)
 # modules
 module load singularity
 
-# # sentieon license
-# export SENTIEON_LICENSE=$wd/config/Bioskryb_Inc_c14_eval.lic
+# sentieon license
+export SENTIEON_LICENSE=$wd/../nextflow/external/BaseJumper/bj-somatic-variantcalling/
 
 # run
 (

@@ -14,7 +14,7 @@ output:
 ---
 
 ```{r setup, include = F, message = F, warning = F, echo = F}
-# rmarkdown::render('src/09_celltype_prediction.Rmd', output_file = 'celltype_prediction.html', output_dir = 'out/analysis/')
+# rmarkdown::render('src/08_celltype_prediction.Rmd', output_file = 'celltype_prediction.html', output_dir = 'out/analysis/')
 
 # chunk options
 knitr::opts_knit$set(root.dir = "../")
@@ -255,5 +255,5 @@ p_dat %>%
   theme_classic() +
   theme(panel.spacing = unit(0, "lines"),
         panel.background = element_rect(fill = "grey", color = NA)) +
-  scale_fill_viridis_c()
+  scale_fill_viridis()
 ```
