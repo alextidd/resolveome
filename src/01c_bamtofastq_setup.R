@@ -27,5 +27,7 @@ ss_merged <-
   dplyr::distinct(sample_id, mapped, index, file_type)
 
 # write samplesheet
+ss_merged %>%
+  write_csv("out/bamtofastq/samplesheet_merged.csv")
 dplyr::bind_rows(ss_unmerged, ss_merged) %>%
   readr::write_csv("out/bamtofastq/samplesheet.csv")

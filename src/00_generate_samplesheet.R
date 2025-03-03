@@ -117,6 +117,25 @@ ss_local <-
 ss_local %>%
   readr::write_csv(paste0(data_dir, "/samplesheet_local.csv"))
 
+# write a samplesheet updating the merged bams
+ss_merged <-
+  ss_local %>%
+  dplyr::filter(run_id %in% c(49901, 50072), seq_type == "rna") %>%
+  dplyr::mutate(
+    id = paste0(cell_id, "_", seq_type, "_merged"),
+    bam = paste0(wd, "/out/merge_bams/", donor_id, "/", id, "/", "/bam/", id,
+                 ".bam")) %>%
+  dplyr::group_by(id) %>%
+  dplyr::summarise(dplyr::across(everything(), ~ paste(unique(.),
+                                                       collapse = ",")))
+ss_unmerged <-
+  ss_local %>%
+  dplyr::filter(!(run_id %in% c(49901, 50072) & seq_type == "rna")) %>%
+  dplyr::mutate(dplyr::across(everything(), as.character))
+ss_w_merged <- dplyr::bind_rows(ss_merged, ss_unmerged)
+ss_w_merged %>%
+  readr::write_csv(paste0(data_dir, "/samplesheet_local_merged.csv"))
+
 # write samplesheet for testing (3 samples from each run)
 ss_local %>%
   dplyr::group_by(seq_type, run_id, lane) %>%

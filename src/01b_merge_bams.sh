@@ -6,19 +6,19 @@ wd=$(pwd)
 
 # create rna samplesheet
 cat data/resolveome/samplesheet_local.csv | head -1 \
-> out/merge_bams/samplesheet_local.csv
-cat data/resolveome/samplesheet_local.csv |
+> out/merge_bams/samplesheet.csv
+cat data/resolveome/samplesheet.csv |
 awk -F, -v OFS="," \
   'NR>1 && $5 == "rna" && ($6 == 49901 || $6 == 50072) {
     $2 = $1"_"$5"_merged"
     print $0
-  }' >> out/merge_bams/samplesheet_local.csv
+  }' >> out/merge_bams/samplesheet.csv
 
 # run
 (
   cd out/merge_bams/
   nextflow run $wd/../nextflow/nf-get_bam \
-    --samplesheet samplesheet_local.csv \
+    --samplesheet samplesheet.csv \
     --location local \
     --out_dir ./ \
     --merge_bams \
