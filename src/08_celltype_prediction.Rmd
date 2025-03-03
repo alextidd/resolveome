@@ -74,10 +74,18 @@ make predictions based on the Human Primary Cell Atlas (HPCA).
 
 ```{r cts_bj}
 cts$bj <-
-  "out/BaseJumper/bj-expression/PD63118_250225_102304/tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv" %>%
-  readr::read_tsv() %>%
+  readr::read_tsv("out/BaseJumper/bj-expression/PD63118_250226_100238/tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv") %>%
   dplyr::left_join(ss, by = c("SampleId" = "id")) %>%
   dplyr::select(cell_id, celltype_bj = Progenitor)
+
+cts$bj %>%
+  dplyr::inner_join(ss_clean) %>%
+  dplyr::count(celltype_bj) %>%
+  ggplot(aes(x = reorder(celltype_bj, -n), y = n)) +
+  geom_col() +
+  geom_text(aes(label = n), vjust = -0.5) +
+  guides(x = guide_axis(angle = -90)) +
+  theme_classic()
 ```
 
 Next, we load the ImmuneLENS scores.
