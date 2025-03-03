@@ -9,6 +9,7 @@ module load singularity
 
 # sentieon license
 export SENTIEON_LICENSE=$wd/../nextflow/external/BaseJumper/bj-somatic-variantcalling/sentieon_eval.lic 
+export LSB_EXCLUSIVE=Y
 
 # run
 (
