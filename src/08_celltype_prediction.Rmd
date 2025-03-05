@@ -73,19 +73,18 @@ Next, we load the celltype predictions from BaseJumper, which uses SingleR to
 make predictions based on the Human Primary Cell Atlas (HPCA).
 
 ```{r cts_bj}
-cts$bj <-
-  readr::read_tsv("out/BaseJumper/bj-expression/PD63118_250226_100238/tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv") %>%
-  dplyr::left_join(ss, by = c("SampleId" = "id")) %>%
-  dplyr::select(cell_id, celltype_bj = Progenitor)
+# get latest bj dir
+bj_dir <-
+  list.files("out/BaseJumper/bj-expression/", pattern = "PD63118_",
+             include.dirs = TRUE, full.names = TRUE) %>%
+  sort() %>%
+  tail(1)
 
-cts$bj %>%
-  dplyr::inner_join(ss_clean) %>%
-  dplyr::count(celltype_bj) %>%
-  ggplot(aes(x = reorder(celltype_bj, -n), y = n)) +
-  geom_col() +
-  geom_text(aes(label = n), vjust = -0.5) +
-  guides(x = guide_axis(angle = -90)) +
-  theme_classic()
+# get basejumper celltype preds
+cts$bj <-
+  readr::read_tsv(paste0(bj_dir, "/tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv")) %>%
+  dplyr::left_join(ss, by = c("SampleId" = "id")) %>%
+  dplyr::select(cell_id, celltype_bj = Progenitor, tcga_tissue = TGCA_Tissue)
 ```
 
 Next, we load the ImmuneLENS scores.
@@ -116,6 +115,38 @@ cts_clean <-
 ss_clean <-
   ss %>%
   dplyr::filter(cell_id %in% cts_clean$cell_id)
+```
+
+## BaseJumper bj-expression predictions
+
+```{r plot_bj}
+# plot celltype counts
+cts %>%
+  dplyr::bind_rows(dplyr::filter(cts, cell_id %in% ss_clean$cell_id) %>% dplyr::mutate(group = "clean")) %>%
+  dplyr::mutate(group = ifelse(is.na(group), "full", group)) %>%
+  dplyr::count(celltype_bj, group) %>%
+  ggplot(aes(x = reorder(celltype_bj, -n), y = n, fill = n)) +
+  geom_col() +
+  geom_text(aes(label = n), vjust = -0.5) +
+  guides(x = guide_axis(angle = -90)) +
+  theme_classic() +
+  labs(x = "SingleR HPCA celltype prediction") +
+  theme(legend.position = "none") +
+  facet_grid(group ~ .)
+
+# plot tcga tissue counts
+cts %>%
+  dplyr::bind_rows(dplyr::filter(cts, cell_id %in% ss_clean$cell_id) %>% dplyr::mutate(group = "clean")) %>%
+  dplyr::mutate(group = ifelse(is.na(group), "full", group)) %>%
+  dplyr::count(tcga_tissue, group) %>%
+  ggplot(aes(x = reorder(tcga_tissue, -n), y = n, fill = n)) +
+  geom_col() +
+  geom_text(aes(label = n), vjust = -0.5) +
+  guides(x = guide_axis(angle = -90)) +
+  theme_classic() +
+  labs(x = "TCGA tissue") +
+  theme(legend.position = "none") +
+  facet_grid(group ~ .)
 ```
 
 ## ImmuneLENS predictions

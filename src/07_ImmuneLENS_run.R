@@ -21,23 +21,25 @@ dir.create(extrect_dir, showWarnings = FALSE)
 # samplesheet
 ss <-
   readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
-  dplyr::filter(seq_type == "dna")
+  dplyr::filter(seq_type == "dna") %>%
+  tail(56)
 
 # get genes
 genes <- c("TCRA", "TCRB", "TCRG", "IGH")
 
 # get scores
 scores <-
-  purrr::map2(ss$id, ss$bam, function(id, bam) {
+  purrr::map2(ss$id, ss$bam, function(id_i, bam) {
 
-    print(id)
-    message(id)
+    print(paste(id_i, "-", bam))
+    message(paste(id_i, "-", bam))
 
     genes %>%
       purrr::map(function(gene) {
 
-        # id <- ss$id[1] ; bam <- ss$bam[1] ; gene <- genes[1]
-        # id <- "plate1_wellG5_dna_run49686"
+        # id_i <- ss$id[1] ; bam <- ss$bam[1] ; gene <- genes[1]
+        # id_i <- "plate1_wellC2_dna_run49686" ; gene <- "TCRG" ; bam <- dplyr::filter(ss, id == id_i)$bam
+        # id_i <- "plate3_wellC11_dna_run49882" ; gene <- "TCRG" ; bam <- "/lustre/scratch125/casm/team268im/at31/resolveome/data/resolveome//PD63118/plate3_wellC11_dna_run49882/bam/plate3_wellC11_dna_run49882.bam"
 
         print(gene)
         message(gene)
@@ -45,33 +47,33 @@ scores <-
         # set celltype
         ct <- ifelse(gene == "IGH", "bcell", "tcell")
 
-        # get cov
+        print("get coverage")
         cov_file <-
           getCovFromBam_WGS(bamPath = bam, outPath = cov_dir, vdj.gene = gene,
                             hg19_or_38 = "hg19")
 
-        # load cov
-        cov <- loadCov(cov_file)
+        print("load coverage")
+        cov <- suppressMessages(loadCov(cov_file))
 
-        # plot coverage
+        print("plot coverage")
         p <-
           tryCatch(
             plotImmuneLENS(vdj.region.df = cov, vdj.gene = gene,
                            median.thresh = 0, hg19_or_38 = "hg19",
-                           sample_name = id),
+                           sample_name = id_i),
             error = function(e) {
               message("Plotting error caught: ", conditionMessage(e))
               NULL
             }
           )
         if (!is.null(p)) {
-          png(paste0(cov_plots_dir, id, "_", gene, "_cov.png"),
+          png(paste0(cov_plots_dir, id_i, "_", gene, "_cov.png"),
               width = 10, height = 5, units = "in", res = 300)
           print(p)
           dev.off()
         }
 
-        # run T cell ExTRECT, catch errors
+        print("run T cell ExTRECT, catch errors")
         extrect <-
           tryCatch(
             runImmuneLENS(vdj.region.df = cov, vdj.gene = gene,
@@ -82,15 +84,15 @@ scores <-
                                   value = NA) %>% tidyr::pivot_wider())
             })
 
-        # save extrect results
+        print("save extrect results")
         extrect %>%
-          saveRDS(file = file.path(extrect_dir, paste0(id, ".", gene, ".rds")))
+          saveRDS(file = file.path(extrect_dir, paste0(id_i, ".", gene, ".rds")))
 
-        # return
+        print("DONE!")
         tibble::tibble(
           cell_fraction = extrect[[1]][, paste0(gene, ".", ct, ".fraction"),
                                        drop = TRUE],
-          celltype = ct, gene = gene, id = id)
+          celltype = ct, gene = gene, id = id_i)
 
     }) %>% dplyr::bind_rows()
   }) %>% dplyr::bind_rows()

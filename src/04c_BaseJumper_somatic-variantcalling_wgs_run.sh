@@ -28,3 +28,5 @@ export LSB_EXCLUSIVE=Y
     -resume \
     -N at31@sanger.ac.uk
 )
+
+# generate multisample vcf

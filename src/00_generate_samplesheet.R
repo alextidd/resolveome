@@ -80,9 +80,9 @@ seqscape <-
 run_id_to_plate <-
   c("49686" = 1, "49882" = 3, "49900" = 3, "49901" = 3, "50072" = 3)
 
-# combine manifest and sequencescape
+# ss irods - combine manifest and sequencescape
 # generate cell_id - plate{plate}_well{well}
-# /seq/illumina/runs/49/49686/lane4-5/plex1/49686_4-5#1.cram
+# generate id      - plate{plate}_well{well}_{seq_type}_run{run_id}
 ss <-
   dplyr::inner_join(manifest, seqscape) %>%
   tidyr::separate_wider_delim("supplier_sample_name", delim = "_",
@@ -100,41 +100,33 @@ ss <-
     plate = run_id_to_plate[run_id]) %>%
   dplyr::transmute(
     cell_id = paste0("plate", plate, "_well", well),
-    id = paste0(cell_id, "_", seq_type, "_run", run_id),
+    # merge the two duplicate RNA runs
+    id = dplyr::case_when(
+      run_id %in% c(49901, 50072) & seq_type == "rna" ~
+        paste0(cell_id, "_", seq_type, "_merged"),
+      TRUE ~ paste0(cell_id, "_", seq_type, "_run", run_id)),
     plate, well, seq_type, run_id, lane, plex_n = npg_aliquot_index,
     study_id = gsub("STDY.*", "", sanger_sample_id),
     donor_id = donor_id_required_for_ega,
     sanger_sample_id, supplier_sample_name, manifest_file,
     bam)
 
-# write samplesheets
+# write ss irods
 ss %>%
   readr::write_csv(paste0(data_dir, "/samplesheet_irods.csv"))
+
+# ss local (with merged RNA BAMs collapsed)
 ss_local <-
   ss %>%
   dplyr::mutate(bam = paste0(data_dir, "/", donor_id, "/", id, "/bam/", id,
-                             ".bam"))
-ss_local %>%
-  readr::write_csv(paste0(data_dir, "/samplesheet_local.csv"))
-
-# write a samplesheet updating the merged bams
-ss_merged <-
-  ss_local %>%
-  dplyr::filter(run_id %in% c(49901, 50072), seq_type == "rna") %>%
-  dplyr::mutate(
-    id = paste0(cell_id, "_", seq_type, "_merged"),
-    bam = paste0(wd, "/out/merge_bams/", donor_id, "/", id, "/", "/bam/", id,
-                 ".bam")) %>%
+                             ".bam")) %>%
   dplyr::group_by(id) %>%
   dplyr::summarise(dplyr::across(everything(), ~ paste(unique(.),
-                                                       collapse = ",")))
-ss_unmerged <-
-  ss_local %>%
-  dplyr::filter(!(run_id %in% c(49901, 50072) & seq_type == "rna")) %>%
-  dplyr::mutate(dplyr::across(everything(), as.character))
-ss_w_merged <- dplyr::bind_rows(ss_merged, ss_unmerged)
-ss_w_merged %>%
-  readr::write_csv(paste0(data_dir, "/samplesheet_local_merged.csv"))
+                                                       collapse = "|")))
+
+# write ss local
+ss_local %>%
+  readr::write_csv(paste0(data_dir, "/samplesheet_local.csv"))
 
 # write samplesheet for testing (3 samples from each run)
 ss_local %>%

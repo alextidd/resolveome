@@ -8,7 +8,7 @@ wd <- getwd()
 fastq_dir <- paste0(wd, "/out/bamtofastq/reads/")
 
 # read samplesheet
-ss <- readr::read_csv("data/resolveome/samplesheet_local.csv")
+ss <- readr::read_csv("data/resolveome/samplesheet_local_merged.csv")
 
 # create wes/wgs bj-somatic-variantcalling samplesheets
 # columns: biosampleName,read1,read2,groups,isbulk,bam
@@ -18,7 +18,7 @@ ss_fastq <-
     biosampleName = id,
     read1 = file.path(fastq_dir, paste0(id, "_1.merged.fastq.gz")),
     read2 = file.path(fastq_dir, paste0(id, "_2.merged.fastq.gz")),
-    groups = "PD63118", isbulk = FALSE, bam = "",
+    groups = donor_id, isbulk = FALSE, bam = "",
     seq_type) %>%
   dplyr::filter(file.exists(read1), file.exists(read2)) %>%
   {split(., .$seq_type)} %>%
