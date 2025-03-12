@@ -16,9 +16,9 @@ strandedness <-
     filters = "hgnc_symbol",
     values = intervals$gene,
     mart = mart) %>%
-  dplyr::transmute(gene = hgnc_symbol, strand = ifelse(strand == 1, "+", "-")) %>%
+  dplyr::transmute(gene = hgnc_symbol, strand) %>%
   dplyr::group_by(gene) %>%
-  dplyr::summarise(strand = ifelse(dplyr::n_distinct(strand) == 1, unique(strand), "*"))
+  dplyr::summarise(strand = ifelse(sum(strand) < 0, "-", "+"))
 
 # convert to grch38, add strandedness
 hg38_intervals <-
@@ -32,7 +32,8 @@ hg38_intervals <-
   tibble::as_tibble() %>%
   dplyr::select(seqnames, start, end, gene) %>%
   dplyr::left_join(strandedness, by = "gene") %>%
-  dplyr::mutate(strand = ifelse(is.na(strand), "*", strand)) %>%
+  # make missing genes + stranded
+  dplyr::mutate(strand = ifelse(is.na(strand), "+", strand)) %>%
   dplyr::transmute(chr = seqnames, start, end, strand, gene)
 
 # convert to picard-style .interval_list
@@ -56,3 +57,4 @@ hg38_intervals %>%
   dplyr::select(chr, start, end) %>%
   readr::write_tsv("out/twist/Probes_merged_ok_combined_Sanger_Immune-v1_TE-91661256_hg38.bed",
                    col_names = FALSE)
+
