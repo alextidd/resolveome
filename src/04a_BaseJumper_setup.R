@@ -8,7 +8,7 @@ wd <- getwd()
 fastq_dir <- paste0(wd, "/out/bamtofastq/reads/")
 
 # read samplesheet
-ss <- readr::read_csv("data/resolveome/samplesheet_local_merged.csv")
+ss <- readr::read_csv("data/resolveome/samplesheet_local.csv")
 
 # create wes/wgs bj-somatic-variantcalling samplesheets
 # columns: biosampleName,read1,read2,groups,isbulk,bam
@@ -24,11 +24,16 @@ ss_fastq <-
   {split(., .$seq_type)} %>%
   lapply(dplyr::select, -seq_type)
 
-# save for wgs
+# save for bj-dna-qc wgs
+ss_fastq$dna %>%
+  dplyr::select(biosampleName, read1, read2) %>%
+  readr::write_csv("out/BaseJumper/bj-dna-qc/wgs/samplesheet.csv")
+
+# save for bj-somatic-variantcalling wgs
 ss_fastq$dna %>%
   readr::write_csv("out/BaseJumper/bj-somatic-variantcalling/wgs/samplesheet.csv")
 
-# save for wes
+# save for bj-somatic-variantcalling wes
 ss_fastq$dnahyb %>%
   readr::write_csv("out/BaseJumper/bj-somatic-variantcalling/wes/samplesheet.csv")
 
