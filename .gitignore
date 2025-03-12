@@ -10,3 +10,4 @@ test.pdf
 .Rhistory
 multiqc_data
 figure-html/
+*_cache/

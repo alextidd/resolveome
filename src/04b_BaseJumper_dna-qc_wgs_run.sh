@@ -19,7 +19,6 @@ export LSB_EXCLUSIVE=Y
     --input_csv samplesheet.csv \
     --publish_dir PD63118 \
     --skip_ginkgo false \
-    -c $wd/config/bj-dna-qc.config \
     -c $wd/config/basejumper.config \
     -w $wd/work/BaseJumper/bj-dna-qc/wgs/ \
     -profile singularity \

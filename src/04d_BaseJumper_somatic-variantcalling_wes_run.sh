@@ -22,7 +22,6 @@ export LSB_EXCLUSIVE=Y
     --dnascope_model_selection bioskryb129 \
     --mode exome \
     --exome_panel TWIST_immune \
-    -c ~/.nextflow/config \
     -c $wd/config/bj-somatic-variantcalling.config \
     -c $wd/config/basejumper.config \
     -w $wd/work/BaseJumper/bj-somatic-variantcalling/wes/ \

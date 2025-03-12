@@ -21,7 +21,6 @@ export LSB_EXCLUSIVE=Y
     --skip_subsampling \
     --tmp_dir $TMPDIR \
     -w $wd/work/BaseJumper/bj-expression/ \
-    -c $wd/config/bj-expression.config \
     -profile singularity \
     -resume
 )
