@@ -89,7 +89,12 @@ muts_and_snps <-
 muts_and_snps %>%
   readr::write_tsv(muts_file)
 
-# combine and write
-ss_bams %>%
+# write samplesheets
+ss <-
+  ss_bams %>%
   dplyr::mutate(mutations = muts_file) %>%
-  readr::write_csv(file.path(out_dir, "samplesheet.csv"))
+  {split(., .$seq_type)}
+purrr::walk2(names(ss), ss, function(seq_type_i, ss_i) {
+  ss_i %>%
+    readr::write_csv(file.path(out_dir, seq_type_i, "samplesheet.csv"))
+})

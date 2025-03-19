@@ -1,0 +1,118 @@
+---
+title: "Ginkgo plots"
+author: "Alexandra Tidd"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    fig_width: 8
+    keep_md: true
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 4
+    theme: lumen
+---
+
+```{r setup, include=FALSE}
+# rmarkdown::render('reports/20250312_gather_gingko_plots.Rmd', output_file = '20250312_gather_gingko_plots.html', output_dir = 'reports/')
+
+# libraries
+library(ggplot2)
+library(knitr)
+library(magrittr)
+
+# chunk options
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_knit$set(root.dir = "../")
+```
+
+```{r}
+# get metadata
+man_insp <- readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv")
+
+# define the directory and pattern for JPEG files
+wd <- getwd()
+out_dir <- paste0(wd, "/out/BaseJumper/bj-dna-qc/dna/PD63118_250312_162149/tertiary_analyses/cnv_ginkgo")
+pattern <- "cnv_binsize_1000000_.*_CN.jpeg"
+
+# list all matching JPEG files
+jpeg_files <- list.files(out_dir, pattern = pattern, full.names = TRUE)
+
+# extract meaningful labels from filenames
+labels <- gsub("cnv_binsize_1000000_", "", basename(jpeg_files))
+labels <- gsub("_CN.jpeg", "", labels)
+```
+
+# Summary plot
+
+```{r get_profiles, fig.height = 12, fig.width = 14}
+segcopy <-
+  readr::read_tsv("out/BaseJumper/bj-dna-qc/dna/PD63118_250312_162149/tertiary_analyses/cnv_ginkgo/SegCopy.binsize_1000000.tsv") %>%
+  tidyr::pivot_longer(cols = -c("CHR", "START", "END"), names_to = "id", values_to = "ploidy")
+
+# create colour gradient
+palette <-
+  c("darkblue", "blue", "grey",
+    colorRampPalette(c("red", "darkred"))(length(3:max(segcopy$ploidy)))) %>%
+  tibble::enframe(value = "colour") %>%
+  dplyr::mutate(ploidy = as.character(0:max(segcopy$ploidy))) %>%
+  {split(.$colour, .$ploidy)}
+
+# plot cnv profile
+segcopy %>%
+  dplyr::left_join(man_insp) %>%
+  dplyr::mutate(
+    ploidy = factor(as.character(ploidy), levels = as.character(0:max(ploidy))),
+    chr = factor(gsub("chr", "", CHR), levels = as.character(c(1:22, "X", "Y"))),
+    chr_dropout = ifelse(chr_dropout, "chr dropout", "no chr dropout")) %>%
+  ggplot(aes(x = START, xend = END, y = id, yend = id, colour = ploidy)) +
+  geom_segment(size = 2) +
+  facet_grid(rows = vars(chr_dropout), cols = vars(chr), scales = "free", space = "free") +
+  scale_colour_manual(values = palette) +
+  theme_minimal() +
+  theme(
+    strip.text.x = element_text(size = 10, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.spacing.x = unit(0, "lines"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  ggtitle("Ginkgo CNV profiles")
+
+# plot cnv profile, chr1 only
+segcopy %>%
+  dplyr::filter(CHR == "chr1") %>%
+  dplyr::left_join(man_insp) %>%
+  dplyr::mutate(
+    ploidy = factor(as.character(ploidy), levels = as.character(0:max(ploidy))),
+    chr = factor(gsub("chr", "", CHR), levels = as.character(c(1:22, "X", "Y"))),
+    chr_dropout = ifelse(chr_dropout, "chr dropout", "no chr dropout")) %>%
+  ggplot(aes(x = START, xend = END, y = id, yend = id, colour = ploidy)) +
+  geom_segment(size = 2) +
+  facet_grid(rows = vars(chr_dropout), cols = vars(chr), scales = "free", space = "free") +
+  scale_colour_manual(values = palette) +
+  theme_minimal() +
+  theme(
+    strip.text.x = element_text(size = 10, face = "bold"),
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.spacing.x = unit(0, "lines"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  ggtitle("Ginkgo CNV profiles, chr1 only")
+```
+
+# Copy number profiles
+
+```{r get_plots, results = 'asis'}
+for (i in seq_along(jpeg_files)) {
+  cat("##", labels[i], "\n\n")
+  cat("![](", jpeg_files[i], ")", "\n\n", sep = "")
+}
+```

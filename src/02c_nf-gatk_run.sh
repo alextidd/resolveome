@@ -16,7 +16,7 @@ module load singularity/3.11.4
     --outdir ./ \
     --location local \
     --fasta /lustre/scratch125/casm/team268im/fa8/117/PTA_49686/PTATO/resources/hg38/Homo_sapiens.GRCh38.dna_sm.toplevel.fa \
-    --realign \
+    --realign false \
     -w $wd/work/nf-gatk/ \
     -N at31@sanger.ac.uk \
     -resume
@@ -38,7 +38,7 @@ module load singularity/3.11.4
 #     -q long  -e $wd/log/%J_remap_$id.err -o $wd/log/%J_remap_$id.out -J remap_$id \
 #     -M 64000 -R "select[mem>64000] rusage[mem=64000] span[hosts=1]" -n 16 \
 #     bwa_mem.pl -b '-T 30 -Y' -o $outdir/$id/ -reference $fasta -sample $id -fragment 10000000 -threads 16 $bam
-# done < <(sed 1d data/resolveome/DNA/samplesheet_local.csv)
+# done < <(sed 1d data/resolveome/samplesheet_local.csv)
 
 # # link matched normal
 # mkdir $outdir/PD63118/

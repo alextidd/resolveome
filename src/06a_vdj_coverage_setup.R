@@ -39,6 +39,6 @@ df_regions %>%
                    col_names = FALSE)
 
 # write samplesheet
-readr::read_csv("data/resolveome/DNA/samplesheet_local.csv") %>%
-  dplyr::filter(seq_type == "WGS") %>%
+readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
+  dplyr::filter(seq_type == "dna") %>%
   readr::write_csv("out/vdj_coverage/samplesheet.csv")

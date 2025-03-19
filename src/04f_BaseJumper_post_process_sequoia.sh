@@ -5,8 +5,8 @@
 module load ISG/rocker/rver/4.4.0
 
 # dirs
-seq_dir=out/BaseJumper/bj-somatic-variantcalling/wgs/PD63118_250306_232001/SOMATIC_VARIANT_WORKFLOW_Heuristic_Filter_SEQUOIA/
-out_dir=out/BaseJumper/bj-somatic-variantcalling/wgs/PD63118_250306_232001/post_process_sequoia/
+seq_dir=out/BaseJumper/bj-somatic-variantcalling/dna/PD63118_250306_232001/SOMATIC_VARIANT_WORKFLOW_Heuristic_Filter_SEQUOIA/
+out_dir=out/BaseJumper/bj-somatic-variantcalling/dna/PD63118_250306_232001/post_process_sequoia/
 mkdir $out_dir
 
 # run sequoia post-processing

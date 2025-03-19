@@ -30,7 +30,7 @@ library(ggplot2)
 We load the samplesheet.
 
 ```{r load_data}
-ss <- readr::read_csv("out/BaseJumper/bj-somatic-variantcalling/wgs/samplesheet.csv")
+ss <- readr::read_csv("out/BaseJumper/bj-somatic-variantcalling/dna/samplesheet.csv")
 metadata <- readr::read_csv("data/resolveome/samplesheet_local.csv")
 ```
 
@@ -39,7 +39,7 @@ We load the annotated variants.
 ```{r load_vars}
 # get the latest run
 out_dir <-
-  list.files("out/BaseJumper/bj-somatic-variantcalling/wgs/",
+  list.files("out/BaseJumper/bj-somatic-variantcalling/dna/",
              pattern = "PD63118_", include.dirs = TRUE, full.names = TRUE) %>%
   sort() %>%
   tail(1)
@@ -87,7 +87,7 @@ vafs <-
   dplyr::bind_rows(.id = "id")
 
 # save vafs
-vafs %>% readr::write_tsv("out/analysis/dnahyb_bj-wgs_mut_vafs.tsv")
+vafs %>% readr::write_tsv("out/analysis/dnahyb_bj-dna_mut_vafs.tsv")
 ```
 
 Plot the VAF distribution.

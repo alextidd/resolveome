@@ -12,8 +12,10 @@ wd=$(pwd)
   module load ISG/rocker/rver/4.4.0 
   export R_LIBS_USER=$HOME/R-tmp-4.4
   nextflow run $wd/../nextflow/external/PTATO/ptato.nf \
-    --run.svs false \
-    --run.cnvs false \
+    --out_dir ./ \
+    -c $wd/config/ptato_run.config \
+    -c $wd/config/ptato.config \
+    -w $wd/work/ptato/ \
     --smurf.time '20d' \
     --smurf.cpus 24 \
     --walker.time '7d' \
@@ -24,11 +26,6 @@ wd=$(pwd)
     --optional.short_variants.ab_tables_dir $wd/out/ptato/intermediate/short_variants/ab/ \
     --optional.short_variants.context_beds_dir $wd/out/ptato/intermediate/short_variants/context/ \
     --optional.short_variants.features_beds_dir $wd/out/ptato/intermediate/short_variants/features/ \
-    -c ~/.nextflow/config \
-    -c $wd/../nextflow/external/PTATO/configs/run-template.config \
-    -c $wd/config/ptato.config \
-    --out_dir ./ \
-    -w $wd/work/ptato/ \
     -resume \
     -with-tower \
     -N at31@sanger.ac.uk

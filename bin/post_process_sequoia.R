@@ -12,10 +12,7 @@ suppressMessages(library(paletteer))
 args <- list(
   sequoia_dir = commandArgs(trailingOnly = TRUE)[1],
   out_dir = commandArgs(trailingOnly = TRUE)[2])
-# args <- list(
-#   sequoia_dir = "out/BaseJumper/bj-somatic-variantcalling/wgs/PD63118_250303_172230/SOMATIC_VARIANT_WORKFLOW_Heuristic_Filter_SEQUOIA/",
-#   out_dir = "out/BaseJumper/bj-somatic-variantcalling/wgs/PD63118_250303_172230/post_process_sequoia/"
-# )
+
 file_placed_variants <- list.files(args$sequoia_dir, pattern = "assigned_to_branches.txt", full.names = TRUE)
 file_nv <- list.files(args$sequoia_dir, pattern = "NV_filtered_all.txt", full.names = TRUE)
 file_nr <- list.files(args$sequoia_dir, pattern = "NR_filtered_all.txt", full.names = TRUE)
