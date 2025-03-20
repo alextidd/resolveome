@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M20000 -R 'span[hosts=1] select[mem>20000] rusage[mem=20000]' -J 04g_BaseJumper_somatic-variantcalling_dna_filter_cells_run -o log/%J_04g_BaseJumper_somatic-variantcalling_dna_filter_cells_run.out -e log/%J_04g_BaseJumper_somatic-variantcalling_dna_filter_cells_run.err 'bash src/04g_BaseJumper_somatic-variantcalling_dna_filter_cells_run.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M20000 -R 'span[hosts=1] select[mem>20000] rusage[mem=20000]' -J 04h_BaseJumper_somatic-variantcalling_dnahyb_filter_cells_run -o log/%J_04h_BaseJumper_somatic-variantcalling_dnahyb_filter_cells_run.out -e log/%J_04h_BaseJumper_somatic-variantcalling_dnahyb_filter_cells_run.err 'bash src/04h_BaseJumper_somatic-variantcalling_dnahyb_filter_cells_run.sh'
 
 # dirs
 wd=$(pwd)
@@ -13,7 +13,7 @@ export LSB_EXCLUSIVE=Y
 
 # run
 (
-  cd out/BaseJumper/bj-somatic-variantcalling/filter_cells/dna/
+  cd out/BaseJumper/bj-somatic-variantcalling/filter_cells/dnahyb/
   
   nextflow run $wd/../nextflow/external/BaseJumper/bj-somatic-variantcalling \
     --input_csv samplesheet.csv \
@@ -24,7 +24,7 @@ export LSB_EXCLUSIVE=Y
     --skip_sigprofile false \
     -c $wd/config/bj-somatic-variantcalling.config \
     -c $wd/config/basejumper.config \
-    -w $wd/work/BaseJumper/bj-somatic-variantcalling/filter_cells/dna/ \
+    -w $wd/work/BaseJumper/bj-somatic-variantcalling/filter_cells/dnahyb/ \
     -profile singularity \
     --architecture "x86_64" \
     -resume \

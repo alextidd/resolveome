@@ -23,7 +23,7 @@ type_mutations <- function(df) {
       nchar(ref) == 1 & nchar(alt) > 1 ~ "ins",
       nchar(ref) > 1 & nchar(alt) == 1 ~ "del",
       nchar(ref) == 2 & nchar(alt) == 2 ~ "dnv",
-      nchar(ref) > 1 & nchar(alt) > 1 ~ "mnv"
+      nchar(ref) > 2 & nchar(alt) > 2 ~ "mnv"
     ))
 
   # expand dnv/mnv mutations to all positions
@@ -76,23 +76,24 @@ caveman_snps <-
 # get mutations
 nanoseq_muts <-
   readr::read_csv("data/nanoseq/mutations2genotype.csv") %>%
+  # get unique mutations
+  dplyr::distinct() %>%
   dplyr::mutate(donor_id = donor_id_i) %>%
   # type the mutations
-  type_mutations()
+  type_mutations() %>%
+  # remove duplicates
+  dplyr::distinct(chr, pos, ref, alt, donor_id)
 
 # write mutations
-muts_file <- file.path(wd, out_dir, donor_id_i, "mutations.tsv")
-muts_and_snps <-
-  list("caveman_snps" = caveman_snps,
-       "nanoseq_mutations" = nanoseq_muts) %>%
-  dplyr::bind_rows(.id = "source")
-muts_and_snps %>%
-  readr::write_tsv(muts_file)
+snps_file <- file.path(out_dir, donor_id_i, "caveman_snps.tsv")
+muts_file <- file.path(out_dir, donor_id_i, "nanoseq_mutations.tsv")
+readr::write_tsv(caveman_snps, snps_file)
+readr::write_tsv(nanoseq_muts, muts_file)
 
 # write samplesheets
 ss <-
   ss_bams %>%
-  dplyr::mutate(mutations = muts_file) %>%
+  dplyr::mutate(mutations = muts_file, snps = snps_file) %>%
   {split(., .$seq_type)}
 purrr::walk2(names(ss), ss, function(seq_type_i, ss_i) {
   ss_i %>%
