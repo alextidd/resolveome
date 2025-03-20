@@ -20,3 +20,25 @@ wd=$(pwd)
     -N at31@sanger.ac.uk \
     -with-tower
 )
+
+# create NR and NV matrices
+mkdir -p out/nf-resolveome/dna/PD63118/genotyping/
+files=(out/nf-resolveome/dna/PD63118/*/genotyping/*_genotyped_mutations.tsv)
+
+# initiate NV and NR matrices with mut ids as rownames
+awk -F"\t" 'NR == 1 {print ""} ; NR > 1 && $21 == "nanoseq_mutations" {print $1"-"$2"-"$3"-"$4}' ${files[0]} \
+> out/nf-resolveome/dna/PD63118/genotyping/NV_genotyped_mutations.tsv
+cp out/nf-resolveome/dna/PD63118/genotyping/NV_genotyped_mutations.tsv \
+  out/nf-resolveome/dna/PD63118/genotyping/NR_genotyped_mutations.tsv
+
+# add NV and NR per sample
+for file in ${files[@]} ; do
+  id=$(echo $file | cut -d/ -f5)
+  echo $id
+  awk -F"\t" -v id=$id 'NR == 1 {print id} ; NR > 1 && $21 == "nanoseq_mutations" {print $5}' $file \
+  | paste out/nf-resolveome/dna/PD63118/genotyping/NR_genotyped_mutations.tsv - \
+  > temp && mv temp out/nf-resolveome/dna/PD63118/genotyping/NR_genotyped_mutations.tsv
+  awk -F"\t" -v id=$id 'NR == 1 {print id} ; NR > 1 && $21 == "nanoseq_mutations" {print $7}' $file \
+  | paste out/nf-resolveome/dna/PD63118/genotyping/NV_genotyped_mutations.tsv - \
+  > temp && mv temp out/nf-resolveome/dna/PD63118/genotyping/NV_genotyped_mutations.tsv
+done
