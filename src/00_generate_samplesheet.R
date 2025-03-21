@@ -133,3 +133,5 @@ ss_local %>%
   dplyr::group_by(seq_type, run_id, lane) %>%
   dplyr::filter(dplyr::row_number() < 4) %>%
   readr::write_csv("out/test/samplesheet.csv")
+
+mutations <- readr::read_tsv("out/nf-resolveome/dna/PD63118/genotyping/mutations/PD63118_genotyped_mutations.tsv")

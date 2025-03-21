@@ -13,7 +13,6 @@ wd=$(pwd)
     --genes TNFRSF14,CD274,LTB,TNFAIP3,TET2,DUSP2,CCR6,DNMT3A,RFTN1,CBL,RASA2,CXCR3,ACTG1,KLHL6 \
     --fasta /lustre/scratch124/casm/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCh38_full_analysis_set_plus_decoy_hla/genome.fa \
     --location local \
-    --bamtofastq false \
     --out_dir ./ \
     -w $wd/work/nf-resolveome/dna/ \
     -resume \

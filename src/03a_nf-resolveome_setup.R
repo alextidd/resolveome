@@ -3,16 +3,22 @@
 # libraries
 library(magrittr)
 
+# dirs
+donor_id_i <- "PD63118"
+wd <- getwd()
+out_dir <- file.path(wd, "out/nf-resolveome/")
+dir.create(out_dir, showWarnings = FALSE)
+
+# get clean cells only
+clean_cell_ids <-
+  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
+  dplyr::filter(!suspected_doublet, !chr_dropout) %>%
+  dplyr::pull(cell_id)
+
 # samplesheet
 ss_bams <-
   readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
-  dplyr::filter(seq_type %in% c("dna", "dnahyb"))
-
-# dirs
-donor_id_i <- "PD63118"
-out_dir <- "out/nf-resolveome/"
-dir.create(out_dir, showWarnings = FALSE)
-wd <- getwd()
+  dplyr::filter(seq_type %in% c("dna", "dnahyb"), cell_id %in% clean_cell_ids)
 
 # function: define mutation type based on ref and alt, split up mnvs and dnvs
 type_mutations <- function(df) {
