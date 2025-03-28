@@ -31,4 +31,4 @@ export LSB_EXCLUSIVE=Y
     -N at31@sanger.ac.uk
 )
 
-# bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J symlink_replace -o "log/%J_cp_basejumper_symlinks.out" "find out/BaseJumper/bj-somatic-variantcalling/dna/PD63118_250306_232001 -type l | while read link; do target=\$(readlink -f \"\$link\"); echo \"Replacing symlink: \$link -> \$target\"; if [ -e \"\$target\" ]; then cp -a \"\$target\" \"\$link.tmp\" && mv \"\$link.tmp\" \"\$link\"; else echo \"Warning: Target does not exist for \$link\"; fi; done"
+# bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J symlink_replace -o "log/%J_cp_basejumper_symlinks.out" "find out/BaseJumper/bj-somatic-variantcalling/filter_cells/dnahyb/PD63118_250321_170558 -type l | while read link; do target=\$(readlink -f \"\$link\"); echo \"Replacing symlink: \$link -> \$target\"; if [ -e \"\$target\" ]; then cp -a \"\$target\" \"\$link.tmp\" && mv \"\$link.tmp\" \"\$link\"; else echo \"Warning: Target does not exist for \$link\"; fi; done"

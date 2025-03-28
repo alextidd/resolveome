@@ -10,10 +10,10 @@ fastq_dir <- paste0(wd, "/out/bamtofastq/reads/")
 # read samplesheet
 ss <- readr::read_csv("data/resolveome/samplesheet_local.csv")
 
-# read manual inspection results, get clean cell ids
+# read manual inspection results, get clean cell ids (include all of plate 10)
 clean_cell_ids <-
   readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
-  dplyr::filter(!suspected_doublet, !chr_dropout) %>%
+  dplyr::filter((!suspected_doublet & !chr_dropout) | grepl("^plate10_", id)) %>%
   dplyr::pull(cell_id) %>%
   unique()
 

@@ -1,0 +1,530 @@
+---
+title: "Shared mutations from the bj-somatic-variantcalling WGS output"
+author: "Alexandra Tidd"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    fig_width: 8
+    keep_md: true
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 4
+    theme: lumen
+params:
+  rerun: false
+---
+
+```{r setup, include = F}
+# rmarkdown::render('reports/20250321_shared_muts_from_bj-somatic-variantcalling_dnahyb_filter_cells.Rmd', output_file = '20250321_shared_muts_from_bj-somatic-variantcalling_dnahyb_filter_cells.html', output_dir = 'reports/')
+
+# chunk options
+knitr::opts_knit$set(root.dir = "../")
+knitr::opts_chunk$set(warning = FALSE,
+                      dpi = 600,
+                      message = FALSE,
+                      cache.path = "reports/20250321_shared_muts_from_bj-somatic-variantcalling_dnahyb_filter_cells_cache/")
+
+# set buffer for reading long lines in vcfs
+Sys.setenv("VROOM_CONNECTION_SIZE" = 2^20) # 1MB buffer
+
+# libraries
+library(magrittr)
+library(ggplot2)
+library(dndscv)
+library(GenomicRanges)
+library(ggtree)
+
+# palettes
+impact_colours <- c("Essential_Splice" = "#8e55a3",
+                    "Nonsense" = "#682c8b",
+                    "Missense" = "#5f9fa0",
+                    "Indels" = "#d4773f",
+                    "Synonymous" = "#b3b4b4",
+                    "Non-coding" = "#606060")
+
+# function: get the trinucleotide context of the muts
+get_mut_trinucs <- function(dat) {
+  dat %>%
+    # get snps only
+    dplyr::filter(nchar(ref) == 1, nchar(alt) == 1) %>%
+    # get the trinucleotide context
+    dplyr::rowwise() %>%
+    dplyr::mutate(
+      trinuc_ref = Rsamtools::scanFa("data/gatk/grch38/genome.fa",
+                                     GRanges(chr, IRanges(pos - 1,
+                                                          pos + 1))) %>%
+                    as.vector()) %>%
+    dplyr::ungroup() %>%
+    # annotate the mutation from the pyrimidine base
+    dplyr::mutate(
+      sub = paste(ref, alt, sep = ">"),
+      sub_py = dplyr::case_when(
+        ref %in% c("A", "G") ~ chartr("TCGA", "AGCT", sub),
+        TRUE ~ sub),
+      trinuc_ref_py = dplyr::case_when(
+        ref %in% c("A", "G") ~ chartr("TCGA", "AGCT", trinuc_ref),
+        TRUE ~ trinuc_ref))
+}
+
+# function: plot the trinucleotide context of the muts
+plot_mut_trinucs <- function(p_dat, p_title = "") {
+  sub_colours <-
+    c("C>A" = "dodgerblue", "C>G" = "black", "C>T" = "red",
+      "T>A" = "grey70", "T>C" = "olivedrab3", "T>G" = "plum2")
+  nucs <- c("T", "C", "G", "A")
+  py_nucs <- c("C", "T")
+  all_subs <-
+    expand.grid(do.call(paste0, expand.grid(nucs, py_nucs, nucs)), nucs) %>%
+    dplyr::transmute(trinuc_ref_py = Var1, ref = substr(Var1, 2, 2), alt = Var2,
+                     sub_py = paste0(ref, ">", alt)) %>%
+    dplyr::filter(alt != ref)
+
+  p_dat %>%
+    dplyr::mutate(n_cells = dplyr::n_distinct(id)) %>%
+    dplyr::add_count(mut_id, name = "n_cells_w_mut") %>%
+    dplyr::count(sub_py, trinuc_ref_py) %>%
+    dplyr::right_join(all_subs) %>%
+    dplyr::mutate(n = ifelse(is.na(n), 0, n)) %>%
+    ggplot(aes(x = trinuc_ref_py, y = n, fill = sub_py)) +
+    geom_col() +
+    facet_grid(~ sub_py, scales = "free_x") +
+    guides(x = guide_axis(angle = 90)) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(family = "mono"),
+          legend.position = "none") +
+    scale_fill_manual(values = sub_colours) +
+    scale_y_continuous(expand = c(0, 0)) +
+    labs(title = p_title, subtitle = paste(nrow(p_dat), "mutations"),
+         x = "", y = "number of mutations")
+}
+
+# function: plot VAF heatmap
+plot_vaf_heatmap <- function(p_dat, p_title, show_rownames = FALSE) {
+  # reshape data for heatmap
+  heatmap_data <-
+    p_dat %>%
+    dplyr::mutate(mut_id = paste0(ifelse(is.na(gene), "", paste0(gene, "-")), mut_id)) %>%
+    dplyr::add_count(mut_id, name = "n_cells_w_mut") %>%
+    reshape2::dcast(mut_id + n_cells_w_mut ~ id, value.var = "alt_vaf")
+  rownames(heatmap_data) <- heatmap_data$mut_id
+  heatmap_matrix <- as.matrix(heatmap_data[, -c(1:3)]) # drop annotations
+  n_total_muts <- dplyr::n_distinct(p_dat$mut_id)
+  n_total_cells <- dplyr::n_distinct(p_dat$id)
+
+  # calculate the number of mutations per column (id)
+  annotation_col <-
+    p_dat %>%
+    dplyr::count(id, run_id, celltype, loh_1p, name = "n_muts") %>%
+    dplyr::mutate(run_id = as.character(run_id)) %>%
+    tibble::column_to_rownames("id")
+
+  # replace NAs with 0
+  heatmap_matrix[is.na(heatmap_matrix)] <- 0
+
+  # prepare annotations for columns
+  annotation_row <- data.frame(n = heatmap_data$n)
+  rownames(annotation_row) <- heatmap_data$mut_id
+
+  # plot
+  pheatmap::pheatmap(
+    mat = heatmap_matrix,
+    cluster_rows = ifelse(nrow(heatmap_matrix) < 65536, TRUE, FALSE),
+    cluster_cols = TRUE,
+    show_rownames = show_rownames,
+    annotation_row = annotation_row,
+    annotation_col = annotation_col,
+    color = colorRampPalette(c("white", "blue"))(50),
+    main = paste("VAF heatmap:", p_title, "\n",
+                 n_total_cells, "cells,", n_total_muts, "mutations"))
+}
+```
+
+We pick out a BaseJumper run.
+
+```{r bj_dir}
+# get the latest run
+bj_dir <- "out/BaseJumper/bj-somatic-variantcalling/filter_cells/dnahyb/"
+bj_run_dir <- file.path(bj_dir, "PD63118_250321_115728")
+vcfs_subdir <- "/SOMATIC_VARIANT_WORKFLOW_Heuristic_Filter_SUBSET_VCF_VARIANTS/"
+```
+
+We load the samplesheet.
+
+```{r load_data}
+man_insp <-
+  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
+  dplyr::select(-id, -run_id)
+metadata <-
+  readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
+  dplyr::left_join(man_insp) %>%
+  dplyr::mutate(
+    # define celltypes
+    celltype = dplyr::case_when(
+      celltype_VDJ_recomb == "alpha-beta T cell" ~ "T cell",
+      celltype_VDJ_recomb == "B cell" & celltype_SHM == "mature B cell" ~
+        "mature B cell",
+      celltype_VDJ_recomb == "B cell" & celltype_SHM == "not mature B cell" ~
+        "non-mature B cell",
+      TRUE ~ "uncertain"),
+    # define 1p_loh
+    loh_1p = dplyr::case_when(`1p_loh` ~ "1p LOH", !`1p_loh` ~ "no 1p LOH",
+                              TRUE ~ "unknown"))
+ss <-
+  readr::read_csv(file.path(bj_dir, "samplesheet.csv"))
+```
+
+We load the driver genes.
+
+```{r driver_genes}
+driver_genes <-
+  readLines("../trencadis-seq/data/thyroid/driver_genes/driver_genes.txt")
+```
+
+# `MultiQC`
+
+We load the `multiqc` output.
+
+```{r multiqc, fig.width = 8, eval = F}
+multiqc <-
+  paste0(bj_run_dir, "/multiqc/multiqc_data/multiqc_PROJECT ID PLOT_TITLE_1.txt") %>%
+  readr::read_tsv() %>%
+  dplyr::rename(id = Sample) %>%
+  dplyr::left_join(metadata %>% dplyr::select(-bam)) 
+
+multiqc %>%
+  # clean
+  dplyr::filter(!chr_dropout, !suspected_doublet) %>%
+  ggplot(aes(x = reorder(id, -MEAN_COVERAGE), y = MEAN_COVERAGE)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = MEAN_COVERAGE - SD_COVERAGE,
+                    ymax = MEAN_COVERAGE + SD_COVERAGE),
+                width = 0.2) +
+  guides(x = guide_axis(angle = -90)) +
+  theme_classic() +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "", y = "mean coverage")
+
+multiqc %>%
+  dplyr::left_join(metadata) %>%
+  dplyr::mutate(chr_dropout = ifelse(chr_dropout, "chr dropout",
+                                     "no chr dropout")) %>%
+  ggplot(aes(x = reorder(id, -HET_SNP_SENSITIVITY), y = HET_SNP_SENSITIVITY)) +
+  geom_col() +
+  facet_grid(~ chr_dropout, scales = "free_x", space = "free_x") +
+  guides(x = guide_axis(angle = -90)) +
+  theme_classic() +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "", y = "heterozygous SNP sensitivity")
+```
+
+# `BaseJumper` somatic variant calls
+
+We load the variants and add cell-level metadata.
+
+```{r load_vars}
+# get vafs, add cell-level metadata
+vafs <- xfun::cache_rds({
+  ss$biosampleName %>%
+    purrr::set_names() %>%
+    purrr::map(function(id) {
+      vcf_file <-
+        paste0(bj_run_dir, vcfs_subdir, id, "_somatic_filtered_variants.vcf.gz")
+      if (file.exists(vcf_file)) {
+        vcf <-
+          readr::read_tsv(vcf_file, comment = "##") %>%
+          {split(., .$FORMAT)} %>%
+          purrr::map(function(vcf_i) {
+            format_i <- stringr::str_split_1(unique(vcf_i$FORMAT), ":")
+            vcf_i %>%
+              dplyr::mutate(gt = get(id)) %>%
+              tidyr::separate_wider_delim("gt", delim = ":", names = format_i) %>%
+              janitor::clean_names() %>%
+              dplyr::mutate(chr = number_chrom, total_depth = dp,
+                            allele = paste(ref, alt, sep = ","),
+                            alt = gsub(",.*", "", alt)) %>%
+              tidyr::separate_longer_delim(cols = c("allele", "ad"),
+                                           delim = ",") %>%
+              dplyr::select(chr, pos, ref, alt, allele, total_depth, ad) %>%
+              dplyr::mutate(name = dplyr::case_when(allele == ref ~ "ref_depth",
+                                                    allele == alt ~ "alt_depth",
+                                                    TRUE ~ "other_depth")) %>%
+              dplyr::filter(name != "other_depth") %>%
+              tidyr::pivot_wider(
+                names_from = "name", values_from = "ad",
+                id_cols = c("chr", "pos", "ref", "alt", "total_depth")) %>%
+              readr::type_convert() %>%
+              dplyr::mutate(alt_vaf = alt_depth / total_depth)
+          }) %>%
+          dplyr::bind_rows()
+      }
+    }) %>%
+    purrr::compact() %>%
+    dplyr::bind_rows(.id = "id") %>%
+    # annotate celltypes
+    dplyr::left_join(metadata)
+  }, file = "vafs.rds", rerun = params$rerun)
+```
+
+# Variant annotation
+
+We annotate the variants using `dndscv`.
+
+```{r annot_muts}
+refdb_file <-
+  "../reference/dndscv/RefCDS_human_GRCh38_GencodeV18_recommended.rda"
+vafs <-
+  xfun::cache_rds({
+    vafs %>%
+      dplyr::transmute(sampleID = id, chr = gsub("chr", "", chr), pos, ref,
+                       mut = alt) %>%
+      dplyr::distinct() %>%
+      dndscv(refdb = refdb_file, outp = 1,
+             max_coding_muts_per_sample = Inf,
+             max_muts_per_gene_per_sample = Inf) %>%
+      {.$annotmuts} %>%
+      dplyr::transmute(chr = paste0("chr", chr), pos, ref, alt = mut, gene, pid,
+                       id = sampleID, aachange, ntchange, codonsub, impact) %>%
+      dplyr::full_join(vafs) %>%
+      dplyr::mutate(impact = ifelse(is.na(impact), "Non-coding", impact) %>%
+                      factor(levels = rev(names(impact_colours))),
+                    mut_id = paste(chr, pos, ref, alt, sep = "-"))
+  }, file = "vafs_annotated.rds", rerun = params$rerun)
+```
+
+# Mutation types per cell
+
+Plot the distribution of mutation types per cell.
+
+```{r plot_mut_types_all, fig.width = 12}
+# all muts
+vafs %>%
+  dplyr::add_count(id) %>%
+  ggplot(aes(x = reorder(id, -n), fill = impact)) +
+  geom_bar() +
+  scale_fill_manual(values = impact_colours) +
+  theme_classic() +
+  scale_y_continuous(expand = c(0, 0)) +
+  guides(x = guide_axis(angle = -90)) +
+  labs(x = "")
+```
+
+```{r plot_mut_types_coding, fig.width = 12}
+# coding muts
+vafs %>%
+  dplyr::filter(impact != "Non-coding") %>%
+  dplyr::add_count(id) %>%
+  ggplot(aes(x = reorder(id, -n), fill = impact)) +
+  geom_bar() +
+  scale_fill_manual(values = impact_colours) +
+  theme_classic() +
+  scale_y_continuous(expand = c(0, 0)) +
+  guides(x = guide_axis(angle = -90)) +
+  labs(x = "")
+```
+
+# Mutation spectra
+
+Get the mutational spectra in the cells.
+
+```{r get_spectra}
+# get trinucleotide context
+vafs_trinuc <-
+  xfun::cache_rds({
+    vafs %>%
+      get_mut_trinucs()
+  }, file = "vafs_trinuc.rds", rerun = params$rerun)
+```
+
+## Plot trinucleotide spectrum (all cells)
+
+```{r plot_spectra, fig.height = 5, fig.width = 11}
+plot_mut_trinucs(vafs_trinuc, "All cells")
+```
+
+## Plot trinucleotide spectrum per celltype
+
+```{r plot_spectra_per_ct, fig.height = 5, fig.width = 11}
+split(vafs_trinuc, vafs_trinuc$celltype) %>%
+  purrr::walk(function(vafs_trinuc_i) {
+    print(plot_mut_trinucs(vafs_trinuc_i, unique(vafs_trinuc_i$celltype)))
+  })
+```
+
+## Plot trinucleotide spectrum per cell
+
+```{r plot_spectra_per_cell, fig.height = 5, fig.width = 11}
+split(vafs_trinuc, vafs_trinuc$id) %>%
+  purrr::walk(function(vafs_trinuc_i) {
+    print(plot_mut_trinucs(vafs_trinuc_i, unique(vafs_trinuc_i$id)))
+  })
+```
+
+# VAF distribution
+
+Plot the VAF distribution.
+
+```{r plot_vaf_dist, fig.height = 4, fig.width = 5}
+c(1, 5, 10, 20, 50) %>%
+  purrr::walk(function(min_total_depth) {
+    p_dat <- vafs %>% dplyr::filter(total_depth >= min_total_depth)
+    p <-
+      p_dat %>%
+      ggplot(aes(x = alt_vaf)) +
+      geom_histogram() +
+      theme_classic() +
+      labs(title = paste("VAF distribution, min depth =", min_total_depth),
+           subtitle = paste(nrow(p_dat), "mutations"), x = "alt VAF")
+    print(p)
+  })
+```
+
+# VAF heatmap
+
+## Plot all mutations (all cells)
+
+```{r plot_vaf_heatmap, fig.height = 10, fig.width = 15}
+p <- plot_vaf_heatmap(vafs, "all muts")
+print(p)
+```
+
+## Plot all shared mutations (all cells)
+
+```{r plot_vaf_heatmap_shared, fig.height = 12, fig.width = 15}
+p_dat_shared <-
+  vafs %>%
+  dplyr::mutate(n_cells = dplyr::n_distinct(id)) %>%
+  dplyr::add_count(mut_id, name = "n_cells_w_mut") %>%
+  dplyr::mutate(prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
+  # shared mutations
+  dplyr::filter(n_cells_w_mut > 1)
+p <- plot_vaf_heatmap(p_dat_shared, "all shared muts", show_rownames = TRUE)
+print(p)
+```
+
+## Plot all shared mutations (% cells w mut < 0.3)
+
+In order to exclude some of the germline noise, we look just at mutations 
+present in <30% of cells.
+
+```{r plot_vaf_heatmap_shared_filtered, fig.height = 8, fig.width = 8}
+p_dat_shared_filtered <-
+  p_dat_shared %>%
+  dplyr::filter(prop_cells_w_mut < 0.3)
+p <- plot_vaf_heatmap(p_dat_shared_filtered,
+                      "shared muts (% cells w mut < 0.3)", TRUE)
+print(p)
+```
+
+## Plot coding shared mutations (all cells)
+
+```{r plot_vaf_heatmap_shared_coding, fig.height = 8, fig.width = 15}
+# look at coding muts
+p_dat_coding <-
+  p_dat_shared %>%
+  dplyr::filter(impact != "Non-coding")
+p <- plot_vaf_heatmap(p_dat_coding, "shared coding muts (all cells)", TRUE)
+print(p)
+```
+
+# Sequoia
+
+We load the tree.
+
+```{r sequoia}
+tree <-
+  file.path(bj_run_dir, "/SOMATIC_VARIANT_WORKFLOW_Heuristic_Filter_SEQUOIA/") %>%
+  list.files(pattern = "_both_tree_with_branch_length.tree", full.names = TRUE) %>%
+  ape::read.tree()
+```
+
+## Phylogeny (all cells)
+
+```{r plot_tree, fig.height = 10}
+# colour clonal tipes
+clones <-
+  list(
+    clone1 = c("plate3_wellD4_dna_run49882", "plate3_wellE11_dna_run49882"),
+    clone2 = c("plate3_wellD11_dna_run49882", "plate3_wellA10_dna_run49882"),
+    clone3 = c("plate3_wellD3_dna_run49882", "plate3_wellB7_dna_run49882"),
+    clone4 = c("plate3_wellE8_dna_run49882", "plate3_wellF10_dna_run49882"))
+tip_col <- rep("black", length(tree$tip.label)) %>% setNames(tree$tip.label)
+tip_pal <- RColorBrewer::brewer.pal(length(clones), "Dark2")
+purrr::walk2(clones, tip_pal, function(clone, col) {
+  tip_col[clone] <<- col
+})
+
+# colour celltypes
+tip_annotations <-
+  metadata %>%
+  dplyr::filter(id %in% tree$tip.label) %>%
+  dplyr::mutate(celltype = ifelse(is.na(celltype), "other", celltype)) %>% 
+  {split(.$id, .$celltype)}
+tip_annotations <- tip_annotations[tree$tip.label]
+
+# plot tree with colored tip labels
+plot(tree, tip.color = tip_col, cex = 0.6)
+ape::axisPhylo(side = 1, backward = FALSE)
+```
+
+# Driver mutations
+
+```{r drivers}
+vafs %>%
+  dplyr::filter(gene %in% driver_genes) %>%
+  dplyr::select(mut_id, gene, id, aachange, ntchange, codonsub, impact,
+                ref_depth, alt_depth, alt_vaf) %>%
+  knitr::kable()
+```
+
+# Beta binomial
+
+```{r beta_binom, eval = FALSE}
+# get nv and nr
+mats <-
+  list("NR", "NV") %>%
+  purrr::set_names() %>%
+  purrr::map(function(mat_type) {
+    file.path(bj_run_dir, "SOMATIC_VARIANT_WORKFLOW_Heuristic_Filter_SEQUOIA") %>%
+      list.files(pattern = paste0("Mat_", mat_type), full.names = TRUE) %>%
+      readr::read_tsv(col_names = FALSE) %>%
+      tibble::column_to_rownames("X1") %>%
+      as.matrix()
+  })
+
+# estimate overdispersion
+estimateRho_gridml <- function(NV_vec, NR_vec) {
+  # rho will be bounded within 1e-6 and 0.89
+ rhovec <- 10^seq(-6, -0.05, by = 0.05)
+ mu <- sum(NV_vec) / sum(NR_vec)
+ ll <- sapply(rhovec, function(rhoj) sum(dbetabinom(x = NV_vec, size = NR_vec, rho = rhoj, prob = mu, log = TRUE)))
+ return(rhovec[ll == max(ll)][1])
+}
+
+rho_est <- pvalue <- rep(NA, nrow(mats$NR))
+require(VGAM)
+for (k in 1:nrow(mats$NR)) {
+	rho_est[k] <- estimateRho_gridml(NV_vec = as.numeric(mats$NV[k,]), NR_vec = as.numeric(mats$NR[k,]))
+	if (k%%1000 == 0) {
+		print(k)
+	}
+}
+
+# num_samples: those with at least 2 supporting reads
+df <-
+  data.frame(pos = 1:length(rho_est),
+             rho_est = log(rho_est),
+             num_samples = rowSums(NV[rownames(NV), ] > 1))
+
+ggplot(df, aes(x = pos, y = rho_est)) +
+  geom_point(aes(colour = factor(num_samples), alpha = 0.5)) +
+  theme(legend.position = "none")
+
+hist(df$num_samples, breaks = 20, xlab = "Number of samples with mutation",
+     ylab = "Number of mutations", main = "pmin(20)")
+
+df$global_vaf <-
+  apply(alts[rownames(vafs),], 1, sum) / apply(covs[rownames(vafs), ], 1, sum)
+ggplot(df, aes(x = pos, y = rho_est)) +
+  geom_point(aes(colour = global_vaf))
+```

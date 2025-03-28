@@ -11,9 +11,10 @@ module load singularity/3.11.4
 # run
 (
   cd out/bamtofastq/
+  cat samplesheet.csv | grep "^sample_id\|^plate10_" > samplesheet.tmp.csv
   nextflow run nf-core/bamtofastq \
     -profile singularity,sanger \
-    --input samplesheet_merged.csv \
+    --input samplesheet.tmp.csv \
     --outdir . \
     -w $wd/work/bamtofastq/ \
     -resume

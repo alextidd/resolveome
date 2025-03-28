@@ -14,7 +14,6 @@ export LSB_EXCLUSIVE=Y
 # run
 (
   cd out/BaseJumper/bj-somatic-variantcalling/filter_cells/dna/
-  
   nextflow run $wd/../nextflow/external/BaseJumper/bj-somatic-variantcalling \
     --input_csv samplesheet.csv \
     --publish_dir PD63118 \

@@ -7,15 +7,30 @@ module load IRODS/1.0
 # dirs
 wd=$(pwd)
 
+# # run
+# (
+#   cd data/resolveome/
+#   nextflow run $wd/../nextflow/nf-get_bam \
+#     --samplesheet samplesheet_irods.csv \
+#     --location irods \
+#     --out_dir ./ \
+#     --cram_to_bam \
+#     --merge_bams \
+#     -resume \
+#     -w $wd/work/get_bams/ \
+#     -N at31@sanger.ac.uk
+# )
+
 # run
 (
   cd data/resolveome/
+  cat samplesheet_irods.csv | grep "cell_id\|plate10_" \
+  > samplesheet_irods.tmp.csv
   nextflow run $wd/../nextflow/nf-get_bam \
-    --samplesheet samplesheet_irods.csv \
+    --samplesheet samplesheet_irods.tmp.csv \
     --location irods \
     --out_dir ./ \
     --cram_to_bam \
-    --merge_bams \
     -resume \
     -w $wd/work/get_bams/ \
     -N at31@sanger.ac.uk

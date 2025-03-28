@@ -430,7 +430,8 @@ chunk_size <- as.numeric(args[6])
 
 
 ### Parallelization ###
-numCores <- detectCores()
+# numCores <- detectCores()
+numCores <- 8
 cl <- makeCluster(numCores,type = "FORK")
 registerDoParallel(numCores) 
 

@@ -79,7 +79,8 @@ We load the samplesheet.
 
 ```{r load_data}
 man_insp <-
-  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv")
+  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
+  dplyr::select(-c(id, run_id))
 ss <-
   readr::read_csv("out/nf-resolveome/dna/samplesheet.csv") %>%
   dplyr::left_join(man_insp)
@@ -118,16 +119,33 @@ ss <-
 We load the variants.
 
 ```{r load_vars}
-geno <-
+geno_hyb <-
   readr::read_tsv("out/nf-resolveome/dnahyb/PD63118/genotyping/mutations/PD63118_annotated_mutations.tsv") %>%
   dplyr::left_join(ss)
+```
+
+We plot a histogram of the VAFs of the mutations.
+
+```{plot_vaf}
+geno_hyb %>%
+  dplyr::filter(mut_depth > 0) %>%
+  ggplot(aes(x = mut_vaf)) +
+  geom_histogram(binwidth = 0.05) +
+  theme_classic()
+
+geno_hyb %>%
+  dplyr::arrange(total_depth) %>%
+  dplyr::count(total_depth) %>%
+  dplyr::mutate(prop_cov = n / dplyr::n()) %>%
+  ggplot(aes(x = total_depth, y = prop_cov)) +
+  geom_step()
 ```
 
 We generate a heatmap of the mutations.
 
 ```{r plot_heatmap}
 # plot shared mutations
-geno %>%
+geno_hyb %>%
   dplyr::filter(mut_depth > 0) %>%
   dplyr::group_by(chr, pos, ref, alt) %>%
   dplyr::filter(dplyr::n_distinct(id) > 1) %>%
