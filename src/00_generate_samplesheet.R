@@ -156,12 +156,12 @@ plate10_man_insp <-
 
 # add pre pcr quants
 dnahyb_pre_pcr_quants <-
-  "data/plate_layout/2024-11-13_Hashimoto_PD63118_Plate3_PlateLayout_dna_pre_pcr_quants.tsv" %>%
+  "data/plate_layout/2025-03-01_Hashimoto_PD63118_Plate10_PlateLayout_dnahyb_pre_pcr_quants.tsv" %>%
   readr::read_tsv() %>%
   tidyr::pivot_longer(cols = -`...1`, values_to = "DNA_PrePCR_conc") %>%
   dplyr::transmute(well = paste0(`...1`, name), DNA_PrePCR_conc)
 rna_pre_pcr_quants <-
-  "data/plate_layout/2024-11-13_Hashimoto_PD63118_Plate3_PlateLayout_rna_pre_pcr_quants.tsv" %>%
+  "data/plate_layout/2025-03-01_Hashimoto_PD63118_Plate10_PlateLayout_rna_pre_pcr_quants.tsv" %>%
   readr::read_tsv() %>%
   tidyr::pivot_longer(cols = -`...1`, values_to = "RNA_PrePCR_conc") %>%
   dplyr::transmute(well = paste0(`...1`, name), RNA_PrePCR_conc)

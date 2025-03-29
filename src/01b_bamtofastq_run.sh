@@ -11,11 +11,11 @@ module load singularity/3.11.4
 # run
 (
   cd out/bamtofastq/
-  cat samplesheet.csv | grep "^sample_id\|^plate10_" > samplesheet.tmp.csv
   nextflow run nf-core/bamtofastq \
     -profile singularity,sanger \
-    --input samplesheet.tmp.csv \
+    --input samplesheet.csv \
     --outdir . \
     -w $wd/work/bamtofastq/ \
-    -resume
+    -resume \
+    -N at31@sanger.ac.uk
 )

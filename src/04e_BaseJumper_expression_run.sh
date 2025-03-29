@@ -13,14 +13,15 @@ export LSB_EXCLUSIVE=Y
 
 # run bj-expression
 (
-  cd out/BaseJumper/bj-expression/
+  cd out/BaseJumper/bj-expression/all_cells/
   nextflow run $wd/../nextflow/external/BaseJumper/bj-expression \
     --input_csv samplesheet.csv \
     --publish_dir PD63118 \
     --genome GRCh38 \
     --skip_subsampling \
     --tmp_dir $TMPDIR \
-    -w $wd/work/BaseJumper/bj-expression/ \
+    -w $wd/work/BaseJumper/bj-expression/all_cells/ \
+    -c $wd/config/basejumper.config \
     -profile singularity \
     -resume
 )

@@ -1,0 +1,269 @@
+---
+title: "ResolveOME differential expression analysis"
+author: "Alexandra Tidd"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    fig_width: 8
+    keep_md: true
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 4
+    theme: lumen
+---
+
+```{r setup, include = F, message = F, warning = F, echo = F}
+# rmarkdown::render('src/10_differential_expression.Rmd', output_file = 'differential_expression.html', output_dir = 'out/analysis/')
+
+# chunk options
+knitr::opts_knit$set(root.dir = "../")
+knitr::opts_chunk$set(warning = FALSE,
+                      dpi = 300,
+                      message = FALSE)
+
+# libraries
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+library(DESeq2)
+library(dplyr)
+library(tibble)
+library(ggrepel)
+library(pheatmap)
+```
+
+Here, I will run a differential gene expression analysis between the WT cells
+and the cells with *TNFRSF14*, *TET2*, and *CD274* mutations.
+
+First, we load the samplesheet with all metadata for the cells.
+
+```{r load_ss}
+# load samplesheet
+ss <-
+  readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
+  dplyr::mutate(run_id = as.character(run_id))
+
+# load manual inspection data
+man_insp <-
+  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv")
+```
+
+Next, we load the cell-gene count expression matrices.
+
+```{r expr_mat}
+# get cells and the tnfrsf14 status
+cells <-
+  man_insp %>%
+  dplyr::filter(celltype_SHM == "mature B cell",
+                !suspected_doublet, !chr_dropout) %>%
+  dplyr::rowwise() %>%
+  dplyr::transmute(sample_id = cell_id, TNFRSF14_mut,
+                   condition = factor(as.numeric(!is.na(TNFRSF14_mut)), levels = c("0", "1")))
+          
+# load expression matrix
+expr <-
+  "out/BaseJumper/bj-expression/all_cells/PD63118_250303_171623/secondary_analyses/quantification_htseq/matrix_gene_counts_starhtseq.txt" %>%
+  readr::read_tsv() %>%
+  tidyr::separate_wider_delim(cols = "gene_id_gene_symbol", delim = "_", names = c("gene_id", "gene_symbol")) %>%
+  dplyr::rename_with(~ stringr::str_replace(., "_rna_.*", "")) %>%
+  dplyr::select(gene_id, gene_symbol, dplyr::any_of(cells$sample_id))
+
+# Ensure sample IDs in `cells` are in the same order as columns in `expr`
+expr_counts <-
+  expr %>%
+  column_to_rownames(var = "gene_id") %>%  # Use gene names as rownames
+  dplyr::select(-gene_symbol)  # Remove gene_id if not needed
+
+# Ensure order of sample IDs matches
+cells <-
+  cells %>%
+  dplyr::arrange(match(sample_id, colnames(expr_counts)))
+
+# Convert to a DESeq2-compatible format
+dds <- DESeqDataSetFromMatrix(
+  countData = as.matrix(expr_counts),
+  colData = cells,
+  design = ~ condition
+)
+
+# Set reference level for condition (WT as reference)
+dds$condition <- relevel(dds$condition, ref = "0")
+
+# Run DESeq2 normalization and differential expression analysis
+dds <- DESeq(dds)
+
+# To visualize normalized counts for a specific gene
+normalised_counts <- counts(dds, normalized = TRUE)
+
+# Extract results
+res <- results(dds, contrast = c("condition", "1", "0"))
+
+# Order results by adjusted p-value (FDR)
+res <- res[order(res$padj), ]
+
+# Convert to a tibble for easier viewing
+res_tbl <-
+  as_tibble(res, rownames = "gene") %>%
+  left_join(expr %>% dplyr::select(gene = gene_id, gene_symbol)) %>%
+  mutate(direction = ifelse(log2FoldChange > 0, "upregulated", "downregulated"))
+
+# View significant genes (FDR < 0.05)
+significant_genes <-
+  res_tbl %>%
+  filter(padj < 0.05)
+print(significant_genes)
+```
+
+```{r volcano, fig.height = 10, fig.width = 10}
+# plot volcano
+labs <-
+  res_tbl %>%
+  group_by(direction) %>%
+  top_n(10, wt = -log10(padj))
+res_tbl %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = padj < 0.05), alpha = 0.6) +
+  ggrepel::geom_text_repel(data = labs, aes(label = gene_symbol), size = 3, vjust = -0.5) +
+  scale_color_manual(values = c("black", "red")) +
+  theme_minimal() +
+  labs(title = "DGEA, TNFRSF14 mutant vs WT mature B cells",
+       x = "Log2 Fold Change",
+       y = "-Log10 Adjusted P-Value")
+```
+
+```{r heatmap, fig.height = 12, fig.width = 10}
+# plot heatmap
+# Get top 50 differentially expressed genes
+top_genes <-
+  significant_genes %>%
+  group_by(direction) %>%
+  top_n(50, wt = -log10(padj)) %>%
+  {split(., .$direction)}
+
+# function: plot heatmap
+plot_heatmap <- function(top_genes_i, counts_i, p_title = "Top 50 DGEs") {
+  # Extract their expression data
+  expr_top <- expr_counts[top_genes_i$gene, arrange(cells, condition)$sample_id]
+  rownames(expr_top) <- top_genes_i$gene_symbol
+
+  # Create a column annotation for TNFRSF14 status
+  annotation_col <- data.frame(condition = factor(cells$condition))
+  rownames(annotation_col) <- cells$sample_id
+
+  # Define color scheme
+  ann_colors <- list(condition = c("0" = "blue", "1" = "red"))
+
+  # Scale and visualize heatmap
+  pheatmap(log2(expr_top + 1),
+           scale = "row", cluster_cols = FALSE,
+           clustering_distance_rows = "correlation",
+           annotation_col = annotation_col,
+           annotation_colors = ann_colors,
+           main = p_title)
+}
+
+# plot up/downregulated genes
+plot_heatmap(top_genes$upregulated, expr_counts, p_title = "Top 50 upregulated DGEs")
+plot_heatmap(top_genes$downregulated, expr_counts, p_title = "Top 50 downregulated DGEs")
+```
+
+```{r}
+# expression of genes in the nfkb pathway
+# List of NF-κB pathway genes
+nfkb_genes <- c(
+  "RELA", "RELB", "NFKB1", "NFKB2", "REL",
+  "NFKBIA", "NFKBIB", "NFKBIE", "BCL3",
+  "CHUK", "IKBKB", "IKBKG",
+  "MAP3K7", "TRAF2", "TRAF5", "TRAF6", "RIPK1", "RIPK2", "TANK", "TNFAIP3",
+  "TNFRSF1A", "TNFRSF1B", "CD40", "TNFRSF5", "TNFRSF14", "LTBR",
+  "TLR2", "TLR4", "TLR9",
+  "TNF", "IL1A", "IL1B", "IL6", "IL8", "CCL2", "CCL5"
+)
+
+# # nfkb genes from Biocarta Pathways dataset
+# nfkb_genes <- 
+#   c("CHUK", "FADD", "IKBKB", "IKBKG", "IL1A", "IL1R1", "IRAK1", "MAP3K1",
+#     "MAP3K7", "MAP4K4", "MYD88", "NFKB1", "NFKBIA", "RELA", "RIPK1", "TAB1",
+#     "TLR4", "TNF", "TNFRSF1A", "TRADD")
+
+# Select NF-κB genes from DESeq2 results
+nfkb_res <- res_tbl %>%
+  filter(gene_symbol %in% nfkb_genes) %>%
+  arrange(padj)
+
+# Print results
+print(nfkb_res)
+```
+
+```{r nfkb_volcano, fig.height = 10, fig.width = 10}
+ggplot(res_tbl, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = padj < 0.05), alpha = 0.6) +
+  scale_color_manual(values = c("black", "red")) +
+  geom_label_repel(data = nfkb_res, aes(label = gene_symbol)) + 
+  theme_minimal() +
+  labs(title = "NF-κB Pathway Gene Expression",
+       x = "Log2 Fold Change",
+       y = "-Log10 Adjusted P-Value")
+```
+
+```{r nfkb_heatmap, fig.height = 10, fig.width = 10}
+# Get expression matrix for NF-κB genes
+expr_nfkb <- expr_counts[nfkb_res$gene, arrange(cells, condition)$sample_id]
+rownames(expr_nfkb) <- nfkb_res$gene_symbol
+
+# Annotate samples by TNFRSF14 status
+annotation_col <- data.frame(condition = ifelse(cells$condition == "1", "mut", "WT"))
+rownames(annotation_col) <- cells$sample_id
+pheatmap(log2(expr_nfkb + 1),
+         scale = "row",
+         cluster_rows = F, cluster_cols = F,
+         #clustering_distance_rows = "correlation",
+         annotation_col = annotation_col,
+         main = "NF-κB Pathway Gene Expression")
+```
+
+Run PCA.
+
+```{r pca, fig.height = 10, fig.width = 10}
+# Normalize the data using DESeq2
+dds <- DESeqDataSetFromMatrix(countData = expr_counts,
+                              colData = DataFrame(condition=rep("Condition1", ncol(expr_counts))), 
+                              design = ~ 1) # Adjust 'design' as necessary
+
+# Perform DESeq normalization
+dds <- DESeq(dds)
+norm_counts <- counts(dds, normalized = TRUE)
+
+# Calculate variance for each gene and select top 500 genes with the highest variance
+variances <- apply(norm_counts, 1, var)
+top_500_genes <- order(variances, decreasing = TRUE)[1:500]
+
+# Subset the data for the top 500 genes
+top_500_counts <- norm_counts[top_500_genes, ]
+
+# Perform PCA
+pca_result <- prcomp(t(top_500_counts), scale. = TRUE)
+
+# Create a data frame for the PCA results
+pca_df <- data.frame(PC1 = pca_result$x[, 1],
+                     PC2 = pca_result$x[, 2],
+                     Cell = colnames(top_500_counts)) %>%
+  left_join(cells, by = c("Cell" = "sample_id"))
+
+# Plot the PCA results
+pca_df %>%
+  ggplot(aes(x = PC1, y = PC2, label = Cell)) +
+  geom_point(aes(colour = condition)) +
+  geom_text_repel(aes(label = Cell)) +
+  theme_minimal() +
+  ggtitle("PCA of Top 500 Genes") +
+  xlab("Principal Component 1") +
+  ylab("Principal Component 2")
+```
+
+Run DGEA with normalisation.
+
+```{r dgea_norm, fig.height = 10, fig.width = 10}
+
+```

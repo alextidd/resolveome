@@ -56,3 +56,8 @@ ss_fastq$filter_cells$dnahyb %>%
 ss_fastq$all_cells$rna %>%
   dplyr::select(biosampleName, read1, read2) %>%
   readr::write_csv("out/BaseJumper/bj-expression/samplesheet.csv")
+
+# create bj-expression samplesheet for rna filtered
+ss_fastq$filter_cells$rna %>%
+  dplyr::select(biosampleName, read1, read2) %>%
+  readr::write_csv("out/BaseJumper/bj-expression/filter_cells/samplesheet.csv")

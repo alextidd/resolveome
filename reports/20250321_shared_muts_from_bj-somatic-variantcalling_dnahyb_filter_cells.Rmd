@@ -1,5 +1,5 @@
 ---
-title: "Shared mutations from the bj-somatic-variantcalling WGS output"
+title: "Shared mutations from the bj-somatic-variantcalling DNAhyb output on filtered cells"
 author: "Alexandra Tidd"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
