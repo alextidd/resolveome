@@ -15,7 +15,8 @@ output:
 
 
 ```{r setup, include = F, message = F, warning = F, echo = F}
-# rmarkdown::render('src/06d_vdj_coverage_knit.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_coverage/')
+# rmarkdown::render('src/06d_vdj_coverage_knit.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_coverage/all_cells/', params = list(out_dir = 'out/vdj_coverage/all_cells/'))
+# rmarkdown::render('src/06d_vdj_coverage_knit.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_coverage/filter_cells/', params = list(out_dir = 'out/vdj_coverage/filter_cells/'))
 
 # chunk options
 knitr::opts_knit$set(root.dir = "../")
@@ -31,8 +32,8 @@ library(magrittr)
 # dirs
 wd <- getwd()
 plots <-
-  system(paste0("ls ", wd,
-                "/out/vdj_coverage/PD63118/*/plots/*_binned_cov.png"),
+  system(paste0("ls ", wd, "/", params$out_dir,
+                "/PD63118/*/plots/*_binned_cov.png"),
          intern = TRUE) %>%
   tibble::tibble(plot = .) %>%
   dplyr::mutate(name = basename(plot) %>% tools::file_path_sans_ext()) %>%
