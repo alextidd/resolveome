@@ -39,18 +39,18 @@ plot_vaf_heatmap <- function(p_dat, p_source) {
   # reshape data for heatmap
   heatmap_data <-
     p_dat2 %>%
-    reshape2::dcast(mut_id + n_cells_w_mut ~ id, value.var = "mut_vaf")
+    reshape2::dcast(mut_id + n_cells_w_mut ~ cell_id, value.var = "mut_vaf")
   rownames(heatmap_data) <- heatmap_data$mut_id
   heatmap_matrix <- as.matrix(heatmap_data[, -c(1:3)]) # drop annotations
   n_total_muts <- dplyr::n_distinct(p_dat2$mut_id)
-  n_total_cells <- dplyr::n_distinct(p_dat2$id)
+  n_total_cells <- dplyr::n_distinct(p_dat2$cell_id)
 
   # calculate the number of mutations per column (id)
   annotation_col <-
     p_dat2 %>%
-    dplyr::count(id, `1p_loh`, celltype_SHM, celltype_VDJ_recomb) %>%
+    dplyr::count(cell_id, `1p_loh`, celltype_SHM, celltype_VDJ_recomb) %>%
     dplyr::mutate(`1p_loh` = as.character(`1p_loh`)) %>%
-    tibble::column_to_rownames("id")
+    tibble::column_to_rownames("cell_id")
 
   # replace NAs with 0
   heatmap_matrix[is.na(heatmap_matrix)] <- 0
@@ -71,6 +71,13 @@ plot_vaf_heatmap <- function(p_dat, p_source) {
                  n_total_cells, "cells,", n_total_muts, "mutations")
   )
 }
+
+impact_colours <- c("Missense" = "#5f9fa0",
+                    "Nonsense" = "#682c8b",
+                    "Essential_Splice" = "#8e55a3",
+                    "Indels" = "#d4773f",
+                    "Synonymous" = "#b3b4b4",
+                    "Non-coding" = "#606060")
 ```
 
 ## DNA
@@ -78,11 +85,14 @@ plot_vaf_heatmap <- function(p_dat, p_source) {
 We load the samplesheet.
 
 ```{r load_data}
+data_dir <- "out/nf-resolveome/dna/"
 man_insp <-
   readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
-  dplyr::select(-c(id, run_id))
+  dplyr::filter(plate == 3, !chr_dropout, !suspected_doublet) %>%
+  dplyr::distinct(cell_id, `1p_loh`, celltype_SHM, celltype_VDJ_recomb,
+                  TNFRSF14_mut)
 ss <-
-  readr::read_csv("out/nf-resolveome/dna/samplesheet.csv") %>%
+  readr::read_csv(file.path(data_dir, "samplesheet.csv")) %>%
   dplyr::left_join(man_insp)
 ```
 
@@ -90,65 +100,202 @@ We load the variants.
 
 ```{r load_vars}
 geno <-
-  readr::read_tsv("out/nf-resolveome/dna/PD63118/genotyping/mutations/PD63118_annotated_mutations.tsv") %>%
+  readr::read_tsv(file.path(data_dir, "PD63118/genotyping/mutations/PD63118_annotated_mutations.tsv")) %>%
   dplyr::left_join(ss)
 ```
 
-We generate a heatmap of the mutations.
+We generate a heatmap of the shared mutations.
 
-```{r plot_heatmap}
+```{r plot_heatmap, fig.width = 20, fig.height = 20}
+# plot shared mutations
+geno %>%
+  plot_vaf_heatmap("NanoSeq mutations - DNA - all")
+```
+
+We generate a heatmap of the TNFRSF14 mutations.
+
+```{r plot_heatmap_TNFRSF14, fig.width = 20, fig.height = 20}
+geno %>%
+  dplyr::group_by(chr, pos, ref, alt) %>%
+  dplyr::filter(gene == "TNFRSF14", max(mut_vaf, na.rm = TRUE) > 0) %>%
+  dplyr::ungroup() %>%
+  plot_vaf_heatmap("NanoSeq mutations - DNA - TNFRSF14")
+```
+
+```{r plot_heatmap_shared, fig.width = 20, fig.height = 20}
 # plot shared mutations
 geno %>%
   dplyr::filter(mut_depth > 0) %>%
   dplyr::group_by(chr, pos, ref, alt) %>%
   dplyr::filter(dplyr::n_distinct(id) > 1) %>%
   dplyr::ungroup() %>%
-  plot_vaf_heatmap("NanoSeq mutations")
+  plot_vaf_heatmap("NanoSeq mutations - DNA - shared")
 ```
 
 ## DNA hyb
 
 We load the samplesheet.
 
-```{r load_data}
-ss <-
+```{r load_data_hyb}
+ss_hyb <-
   readr::read_csv("out/nf-resolveome/dnahyb/samplesheet.csv") %>%
   dplyr::left_join(man_insp)
 ```
 
 We load the variants.
 
-```{r load_vars}
+```{r load_vars_hyb}
 geno_hyb <-
   readr::read_tsv("out/nf-resolveome/dnahyb/PD63118/genotyping/mutations/PD63118_annotated_mutations.tsv") %>%
-  dplyr::left_join(ss)
+  dplyr::left_join(ss_hyb)
 ```
 
-We plot a histogram of the VAFs of the mutations.
+We plot the VAF distribution of the mutations.
 
-```{plot_vaf}
-geno_hyb %>%
-  dplyr::filter(mut_depth > 0) %>%
-  ggplot(aes(x = mut_vaf)) +
-  geom_histogram(binwidth = 0.05) +
-  theme_classic()
+```{r plot_vaf_dist_hyb, fig.width = 20, fig.height = 20}
+# combine counts, recalculate vafs
+comb_geno <-
+  dplyr::bind_rows(
+  readr::read_tsv("out/nf-resolveome/dna/PD63118/genotyping/mutations/PD63118_annotated_mutations.tsv"),
+  readr::read_tsv("out/nf-resolveome/dnahyb/PD63118/genotyping/mutations/PD63118_annotated_mutations.tsv")) %>%
+  dplyr::mutate(cell_id = gsub("_dna.*", "", id)) %>%
+  dplyr::select(-c(id, mut_vaf)) %>%
+  group_by(across(-matches("_depth$"))) %>%
+  dplyr::summarise(across(matches("_depth$"), sum, na.rm = TRUE)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(mut_vaf = mut_depth / total_depth)
+comb_geno_filter <-
+  comb_geno %>%
+  dplyr::filter(mut_vaf > 0.25, mut_depth > 1)
 
-geno_hyb %>%
-  dplyr::arrange(total_depth) %>%
-  dplyr::count(total_depth) %>%
-  dplyr::mutate(prop_cov = n / dplyr::n()) %>%
-  ggplot(aes(x = total_depth, y = prop_cov)) +
-  geom_step()
+# % of B cells with a nonsynonymous mutation
+n_mat_b_cells <-
+  man_insp %>%
+  dplyr::filter(celltype_SHM == "mature B cell") %>%
+  nrow()
+p_dat <-
+  comb_geno_filter %>%
+  dplyr::filter(impact != "Synonymous") %>%
+  dplyr::group_by(gene) %>%
+  dplyr::summarise(n_cells = dplyr::n_distinct(cell_id)) %>%
+  dplyr::mutate(prop_cells = n_cells / n_mat_b_cells)
+p2 <-
+  p_dat %>%
+  ggplot(aes(x = reorder(gene, -prop_cells), y = prop_cells)) +
+  geom_col(fill = "#d6630d") +
+  theme_classic() +
+  labs(x = "gene", y = "% of mature B cells with a driver mutation") +
+  scale_y_continuous(expand = c(0, 0))
+
+# mutations per gene
+p1 <-
+  comb_geno_filter %>%
+  dplyr::left_join(man_insp) %>%
+  dplyr::add_count(gene, name = "total") %>%
+  dplyr::count(gene, impact, total, celltype_SHM) %>%
+  dplyr::mutate(impact = ifelse(impact == "no-SNV", "Synonymous", impact) %>% factor(levels = rev(names(impact_colours)))) %>%
+  dplyr::left_join(p_dat %>% dplyr::distinct(gene, prop_cells)) %>%
+  ggplot(aes(x = reorder(gene, -prop_cells), y = n, fill = impact)) +
+  geom_col() +
+  scale_fill_manual(values = impact_colours) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  labs(y = "n mutations")
+
+# plot
+p1 / p2
+
+# plot vaf distribution
+comb_geno_filter %>%
+  dplyr::left_join(man_insp) %>%
+  dplyr::mutate(`1p LOH` = ifelse(chr == "1" & `1p_loh`, "1", "0")) %>%
+  ggplot(aes(x = mut_vaf, fill = `1p LOH`)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_fill_brewer(palette = "Set1") +
+  scale_y_continuous(expand = c(0, 0)) +
+  xlim(0, NA) +
+  labs(x = "mutant VAF")
+
+# vaf heatmap
+# prepare data
+p_dat2 <-
+  comb_geno_filter %>%
+  dplyr::left_join(man_insp) %>%
+  dplyr::mutate(mut_id = paste(gene, chr, pos, ref, alt, sep = "_")) %>%
+  # count number of cells with each mutation
+  dplyr::add_count(mut_id, name = "n_cells_w_mut")
+
+# reshape data for heatmap
+heatmap_data <-
+  p_dat2 %>%
+  reshape2::dcast(mut_id + n_cells_w_mut ~ cell_id, value.var = "mut_vaf")
+rownames(heatmap_data) <- heatmap_data$mut_id
+heatmap_matrix <- as.matrix(heatmap_data[, -c(1:3)]) # drop annotations
+n_total_muts <- dplyr::n_distinct(p_dat2$mut_id)
+n_total_cells <- dplyr::n_distinct(p_dat2$cell_id)
+
+# calculate the number of mutations per column (id)
+annotation_col <-
+  p_dat2 %>%
+  dplyr::count(cell_id, `1p_loh`) %>%
+  dplyr::mutate(`1p_loh` = as.character(`1p_loh`)) %>%
+  tibble::column_to_rownames("cell_id")
+
+# replace NAs with 0
+heatmap_matrix[is.na(heatmap_matrix)] <- 0
+
+# prepare annotations for columns
+annotation_row <- data.frame(n_cells_w_mut = heatmap_data$n_cells_w_mut)
+rownames(annotation_row) <- heatmap_data$mut_id
+
+# plot
+p <- pheatmap::pheatmap(
+  mat = heatmap_matrix,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  annotation_row = annotation_row,
+  annotation_col = annotation_col,
+  color = colorRampPalette(c("white", "blue"))(50))
+
+pdf("test.pdf", width = 12, height = 10)
+p
+dev.off()
 ```
 
 We generate a heatmap of the mutations.
 
-```{r plot_heatmap}
+```{r plot_heatmap_hyb, fig.width = 20, fig.height = 20}
+# plot shared mutations
+geno_hyb %>%
+  dplyr::filter(mut_depth > 0) %>%
+  plot_vaf_heatmap("NanoSeq mutations - DNAhyb - all")
+```
+
+```{r plot_heatmap_hyb_shared, fig.width = 20, fig.height = 20}
 # plot shared mutations
 geno_hyb %>%
   dplyr::filter(mut_depth > 0) %>%
   dplyr::group_by(chr, pos, ref, alt) %>%
   dplyr::filter(dplyr::n_distinct(id) > 1) %>%
   dplyr::ungroup() %>%
-  plot_vaf_heatmap("NanoSeq mutations")
+  plot_vaf_heatmap("NanoSeq mutations - DNAhyb - shared")
+```
+
+We check the concordance between the TNFRSF14 mutation annotations from the 
+manual inspection and from the genotyping results.
+
+```{r check_concordance}
+man_insp %>%
+  dplyr::transmute(TNFRSF14_status = ifelse(is.na(TNFRSF14_mut), "WT", "mut"),
+                   cell_id) %>%
+  dplyr::right_join(dplyr::bind_rows(geno, geno_hyb)) %>%
+  dplyr::filter(gene == "TNFRSF14", aachange != ".") %>%
+  dplyr::mutate(mut_frac = paste(mut_depth, total_depth, sep = "/")) %>%
+  tidyr::pivot_wider(
+    id_cols = c(cell_id, chr, pos, ref, alt, aachange, mut_vaf, `1p_loh`, TNFRSF14_status, TNFRSF14_mut),
+    names_from = seq_type, values_from = mut_frac) %>%
+  dplyr::mutate(TNFRSF14_mut_auto = paste0(aachange, " (WGS ", dna, ", TGS ", dnahyb, ")"))
 ```

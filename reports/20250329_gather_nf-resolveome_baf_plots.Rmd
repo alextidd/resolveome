@@ -1,0 +1,77 @@
+---
+title: "Ginkgo plots"
+author: "Alexandra Tidd"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    fig_width: 8
+    keep_md: true
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 4
+    theme: lumen
+---
+
+```{r setup, include=FALSE}
+# rmarkdown::render('reports/20250329_gather_nf-resolveome_baf_plots.Rmd', output_file = '20250329_gather_nf-resolveome_baf_plots.html', output_dir = 'reports/')
+
+# libraries
+library(ggplot2)
+library(knitr)
+library(magrittr)
+
+# chunk options
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_knit$set(root.dir = "../")
+```
+
+```{r}
+# get metadata
+man_insp <-
+  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
+  dplyr::filter(!chr_dropout, !suspected_doublet)
+
+# define the directory and pattern for JPEG files
+wd <- getwd()
+out_dir <- paste0(wd, "/out/nf-resolveome/dna/PD63118/")
+
+# list all matching png files
+png_files <-
+  man_insp %>%
+  dplyr::arrange(`1p_loh`) %>%
+  dplyr::mutate(
+    label = paste(ifelse(`1p_loh`, "1p LOH -", "1p diploid -"), id),
+    png = paste0(out_dir, id, "/genotyping/", id, "_caveman_snps_baf_plot.png")) %>%
+  {split(.$png, .$label)} %>%
+  unlist()
+
+# list files for chr1
+png_files_chr1 <-
+  man_insp %>%
+  dplyr::arrange(`1p_loh`) %>%
+  dplyr::mutate(
+    label = paste(ifelse(`1p_loh`, "1p LOH -", "1p diploid -"), id),
+    png = paste0(out_dir, id, "/genotyping/", id, "_caveman_snps_baf_chr1_plot.png")) %>%
+  {split(.$png, .$label)} %>%
+  unlist()
+png_files_chr1 <- png_files_chr1[sapply(png_files_chr1, file.exists)]
+```
+
+# Copy number profiles
+
+```{r get_plots, results = 'asis'}
+for (i in seq_along(png_files)) {
+  cat("##", names(png_files)[i], "\n\n")
+  cat("![](", png_files[i], ")", "\n\n", sep = "")
+}
+```
+
+# Copy number profiles - chr1
+
+```{r get_plots_chr1, results = 'asis'}
+for (i in seq_along(png_files_chr1)) {
+  cat("##", names(png_files_chr1)[i], "\n\n")
+  cat("![](", png_files_chr1[i], ")", "\n\n", sep = "")
+}
+```

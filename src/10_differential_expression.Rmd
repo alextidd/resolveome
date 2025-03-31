@@ -49,6 +49,47 @@ man_insp <-
   readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv")
 ```
 
+Plot n counts and n features per cell.
+
+```{r}
+# load expression matrix
+expr  <-
+  counts %>%
+  readr::read_tsv() %>%
+  tidyr::separate_wider_delim(cols = "gene_id_gene_symbol", delim = "_", names = c("gene_id", "gene_symbol")) %>%
+  dplyr::rename_with(~ stringr::str_replace(., "_rna_.*", ""))
+
+# Compute nCounts and nFeatures for each cell (excluding gene_id and gene_symbol)
+cell_stats <-
+  expr %>%
+  dplyr::select(-gene_id, -gene_symbol) %>%
+  dplyr::summarise(
+    `total counts` = colSums(.),          # Total counts per cell
+    `total genes` = colSums(. > 0)     # Number of expressed genes per cell
+  ) %>%
+  tidyr::pivot_longer(cols = everything(), names_to = "metric", values_to = "value") %>%
+  dplyr::mutate(cell_id = rep(colnames(expr)[-c(1,2)], 2)) # Add cell labels
+
+# Plot
+cell_stats %>%
+  dplyr::left_join(man_insp) %>%
+  dplyr::filter(!chr_dropout, !suspected_doublet) %>%
+  dplyr::group_by(cell_id) %>%
+  dplyr::mutate(arr = max(value)) %>%
+  dplyr::ungroup() %>%
+  ggplot(aes(x = reorder(cell_id, -arr), y = value, fill = value)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  guides(x = guide_axis(angle = -90)) +
+  labs(x = "cell", y = "") +
+  facet_grid(metric ~ ., scales = "free_y") +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "none") +
+  viridis::scale_fill_viridis()
+```
+
 Next, we load the cell-gene count expression matrices.
 
 ```{r expr_mat}
@@ -60,13 +101,9 @@ cells <-
   dplyr::rowwise() %>%
   dplyr::transmute(sample_id = cell_id, TNFRSF14_mut,
                    condition = factor(as.numeric(!is.na(TNFRSF14_mut)), levels = c("0", "1")))
-          
-# load expression matrix
+
 expr <-
-  "out/BaseJumper/bj-expression/all_cells/PD63118_250303_171623/secondary_analyses/quantification_htseq/matrix_gene_counts_starhtseq.txt" %>%
-  readr::read_tsv() %>%
-  tidyr::separate_wider_delim(cols = "gene_id_gene_symbol", delim = "_", names = c("gene_id", "gene_symbol")) %>%
-  dplyr::rename_with(~ stringr::str_replace(., "_rna_.*", "")) %>%
+  counts %>%
   dplyr::select(gene_id, gene_symbol, dplyr::any_of(cells$sample_id))
 
 # Ensure sample IDs in `cells` are in the same order as columns in `expr`

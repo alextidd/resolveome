@@ -64,10 +64,13 @@ segcopy %>%
   dplyr::mutate(
     ploidy = factor(as.character(ploidy), levels = as.character(0:max(ploidy))),
     chr = factor(gsub("chr", "", CHR), levels = as.character(c(1:22, "X", "Y"))),
-    chr_dropout = ifelse(chr_dropout, "chr dropout", "no chr dropout")) %>%
+    facet = dplyr::case_when(chr_dropout & suspected_doublet ~ "chr dropout, suspected doublet",
+                              chr_dropout & !suspected_doublet ~ "chr dropout, singlet",
+                              !chr_dropout & suspected_doublet ~ "no chr dropout, suspected doublet",
+                              TRUE ~ "no chr dropout, no suspected doublet")) %>%
   ggplot(aes(x = START, xend = END, y = id, yend = id, colour = ploidy)) +
   geom_segment(size = 2) +
-  facet_grid(rows = vars(chr_dropout), cols = vars(chr), scales = "free", space = "free") +
+  facet_grid(rows = vars(facet), cols = vars(chr), scales = "free", space = "free") +
   scale_colour_manual(values = palette) +
   theme_minimal() +
   theme(

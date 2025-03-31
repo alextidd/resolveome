@@ -45,12 +45,13 @@ First, we load the samplesheet with all metadata for the cells.
 # load samplesheet
 ss <-
   readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
-  dplyr::mutate(run_id = as.character(run_id))
+  dplyr::mutate(run_id = as.character(run_id)) %>%
+  dplyr::filter(plate != 10)
 ss_exp <-
   ss %>%
   dplyr::select(id, cell_id, seq_type) %>%
   dplyr::group_by(id, cell_id) %>%
-  tidyr::expand_grid(name = c("celltype_SHM", "celltype_VDJ_recomb", "celltype_bj")) %>%
+  tidyr::expand_grid(name = c("celltype_SHM", "celltype_VDJ_recomb", "celltype_bj_expression")) %>%
   dplyr::ungroup()
 ```
 
@@ -75,7 +76,7 @@ make predictions based on the Human Primary Cell Atlas (HPCA).
 ```{r cts_bj}
 # get latest bj dir
 bj_dir <-
-  list.files("out/BaseJumper/bj-expression/", pattern = "PD63118_",
+  list.files("out/BaseJumper/bj-expression/all_cells/", pattern = "PD63118_",
              include.dirs = TRUE, full.names = TRUE) %>%
   sort() %>%
   tail(1)
@@ -84,7 +85,7 @@ bj_dir <-
 cts$bj <-
   readr::read_tsv(paste0(bj_dir, "/tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv")) %>%
   dplyr::left_join(ss, by = c("SampleId" = "id")) %>%
-  dplyr::select(cell_id, celltype_bj = Progenitor, tcga_tissue = TGCA_Tissue)
+  dplyr::select(cell_id, celltype_bj_expression = Progenitor, tcga_tissue = TGCA_Tissue)
 ```
 
 Next, we load the ImmuneLENS scores.
@@ -109,8 +110,9 @@ cts <- Reduce(dplyr::full_join, cts)
 # get only 'clean' cells
 cts_clean <-
   cts %>%
-  dplyr::filter(!suspected_doublet, !chr_dropout)
-
+  dplyr::filter(!suspected_doublet, !chr_dropout,
+                !is.na(suspected_doublet), !is.na(chr_dropout))
+c
 # update samplesheet to only 'clean' cells
 ss_clean <-
   ss %>%
@@ -124,8 +126,8 @@ ss_clean <-
 cts %>%
   dplyr::bind_rows(dplyr::filter(cts, cell_id %in% ss_clean$cell_id) %>% dplyr::mutate(group = "clean")) %>%
   dplyr::mutate(group = ifelse(is.na(group), "full", group)) %>%
-  dplyr::count(celltype_bj, group) %>%
-  ggplot(aes(x = reorder(celltype_bj, -n), y = n, fill = n)) +
+  dplyr::count(celltype_bj_expression, group) %>%
+  ggplot(aes(x = reorder(celltype_bj_expression, -n), y = n, fill = n)) +
   geom_col() +
   geom_text(aes(label = n), vjust = -0.5) +
   guides(x = guide_axis(angle = -90)) +
@@ -167,7 +169,23 @@ cts %>%
   ggplot(aes(x = ct, y = value)) +
   geom_boxplot(outlier.colour = NA) +
   geom_jitter(height = 0, aes(colour = suspected_doublet)) +
-  facet_wrap(~ name)
+  facet_wrap(~ name) +
+  ggtitle("ImmuneLENS scores vs VDJ recombination celltype")
+
+cts_clean %>%
+  dplyr::filter(!chr_dropout) %>%
+  dplyr::mutate(
+    ct = dplyr::case_when(
+      celltype_VDJ_recomb == "B cell" & celltype_SHM == "not B mem" ~ "non-mem B cell",
+      celltype_VDJ_recomb == "B cell" & celltype_SHM == "B mem" ~ "mem B cell",
+      celltype_VDJ_recomb == "alpha-beta T cell" ~ celltype_VDJ_recomb,
+      TRUE ~ celltype_VDJ_recomb)) %>%
+  tidyr::pivot_longer(cols = dplyr::starts_with("cell_frac")) %>%
+  ggplot(aes(x = ct, y = value)) +
+  geom_boxplot(outlier.colour = NA) +
+  geom_jitter(height = 0, aes(colour = suspected_doublet)) +
+  facet_wrap(~ name) +
+  ggtitle("ImmuneLENS scores vs VDJ recombination celltype (clean cells)")
 ```
 
 Now, we can plot all celltype predictions next to each other.
@@ -175,7 +193,8 @@ Now, we can plot all celltype predictions next to each other.
 ```{r plot_cts}
 p_dat <-
   cts_clean %>%
-  dplyr::mutate(ct_VDJ = celltype_VDJ_recomb)
+  dplyr::mutate(celltype_VDJ_recomb = ifelse(is.na(celltype_VDJ_recomb), "", celltype_VDJ_recomb),
+                ct_VDJ = celltype_VDJ_recomb)
 
 p_ils <-
   p_dat %>%
@@ -198,6 +217,46 @@ p_cts <-
   facet_grid(~ ct_VDJ, scales = "free_x", space = "free_x")
 
 p_ils / p_cts
+```
+
+Now, we can plot simplified celltype predictions.
+
+```{r plot_cts}
+p_dat <-
+  cts_clean %>%
+  dplyr::mutate(
+    celltype = dplyr::case_when(
+      is.na(celltype_VDJ_recomb) ~ "",
+      celltype_VDJ_recomb == "alpha-beta T cell" ~ "T",
+      celltype_VDJ_recomb == "B cell" & celltype_SHM == "mature B cell" ~ "mature B",
+      celltype_VDJ_recomb == "B cell" & celltype_SHM == "not mature B cell" ~ "non-mature B",
+      celltype_VDJ_recomb == "not lymphocyte" ~ "non-lymphocyte",
+      TRUE ~ celltype_VDJ_recomb) %>%
+      factor(levels = c("mature B", "non-mature B", "T", "non-lymphocyte", "")),
+    ct_VDJ = celltype_VDJ_recomb)
+
+p_dat %>%
+  tidyr::pivot_longer(cols = dplyr::starts_with("cell_frac")) %>%
+  dplyr::filter(name %in% c("cell_frac_TCRA", "cell_frac_IGH")) %>%
+  ggplot(aes(x = cell_id, y = name, fill = value)) +
+  geom_tile() +
+  scale_y_discrete(expand = c(0, 0)) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~ celltype, scales = "free_x", space = "free_x")
+
+p_dat %>%
+  tidyr::pivot_longer(cols = dplyr::starts_with("cell_frac")) %>%
+  dplyr::mutate(name = gsub(".*_", "", name)) %>%
+  dplyr::filter(name %in% c("TCRA", "IGH")) %>%
+  ggplot(aes(x = celltype, y = value, colour = celltype)) +
+  geom_boxplot(outlier.colour = NA) +
+  geom_jitter(height = 0, width = 0.1) +
+  facet_wrap(~ name) +
+  theme(legend.position = "none") +
+  scale_colour_brewer(palette = "Dark2") +
+  labs(y = "cell fraction estimate")
 ```
 
 ## Read and gene counts from RNA

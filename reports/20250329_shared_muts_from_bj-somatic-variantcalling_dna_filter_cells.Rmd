@@ -268,14 +268,25 @@ vafs <- xfun::cache_rds({
 
 # Variant annotation
 
-We annotate the variants using `dndscv`.
+We annotate the variants using `dndscv` and a common SNP database.
 
 ```{r annot_muts}
 refdb_file <-
   "../reference/dndscv/RefCDS_human_GRCh38_GencodeV18_recommended.rda"
 vafs <-
   xfun::cache_rds({
+    # load common SNPs
+    common_snps_file <-
+      "/lustre/scratch125/casm/team268im/fa8/117/NOVASEQX_MASKS/NEW_MASKS_wNSX_OCT2024/GRCh38_WGNS/SNP_GRCh38.wgns.bed.gz"
+    common_snps <-
+      gzfile(common_snps_file) %>%
+      readr::read_tsv(col_names = c("#CHROM", "START", "POS")) %>%
+      dplyr::transmute(chr = `#CHROM`, pos = POS, common_snp = TRUE) %>%
+      dplyr::distinct()
+    
+    # annotate variants
     vafs %>%
+      # run dndscv
       dplyr::transmute(sampleID = id, chr = gsub("chr", "", chr), pos, ref,
                        mut = alt) %>%
       dplyr::distinct() %>%
@@ -286,8 +297,11 @@ vafs <-
       dplyr::transmute(chr = paste0("chr", chr), pos, ref, alt = mut, gene, pid,
                        id = sampleID, aachange, ntchange, codonsub, impact) %>%
       dplyr::full_join(vafs) %>%
+      # annotate common SNPs
+      dplyr::left_join(common_snps) %>%
       dplyr::mutate(impact = ifelse(is.na(impact), "Non-coding", impact) %>%
                       factor(levels = rev(names(impact_colours))),
+                    common_snp = ifelse(is.na(common_snp), FALSE, common_snp),
                     mut_id = paste(chr, pos, ref, alt, sep = "-"))
   }, file = "vafs_annotated.rds", rerun = params$rerun)
 ```
@@ -434,6 +448,16 @@ p_dat_coding <-
   dplyr::filter(impact != "Non-coding")
 p <- plot_vaf_heatmap(p_dat_coding, "shared coding muts (all cells)", TRUE)
 print(p)
+```
+
+## Plot shared mutations (common SNPs removed)
+
+```{r plot_vaf_heatmap_shared_no_common, fig.height = 8, fig.width = 15}
+p <-
+  p_dat_shared %>%
+  dplyr::filter(!common_snp) %>%
+  plot_vaf_heatmap("shared muts (common SNPs removed)", FALSE)
+p
 ```
 
 # Sequoia

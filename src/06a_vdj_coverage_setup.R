@@ -3,6 +3,8 @@ library(magrittr)
 
 # dirs
 dir.create("out/vdj_coverage/regions/", showWarnings = FALSE)
+dir.create("out/vdj_coverage/all_cells/", showWarnings = FALSE)
+dir.create("out/vdj_coverage/filter_cells/", showWarnings = FALSE)
 
 # load data
 df <-
@@ -38,7 +40,18 @@ df_regions %>%
   readr::write_tsv("out/vdj_coverage/regions/ig_tcr_regions.bed",
                    col_names = FALSE)
 
-# write samplesheet
+# get samplesheet of all cells
 readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
   dplyr::filter(seq_type == "dna") %>%
-  readr::write_csv("out/vdj_coverage/samplesheet.csv")
+  readr::write_csv("out/vdj_coverage/all_cells/samplesheet.csv")
+
+# get cell filters from manual inspection
+man_insp <-
+  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
+  dplyr::filter((!chr_dropout & !suspected_doublet) | plate == 10)
+
+# write samplesheet of filtered cells
+readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
+  dplyr::filter(seq_type %in% c("dna", "dnahyb"),
+                cell_id %in% man_insp$cell_id) %>%
+  readr::write_csv("out/vdj_coverage/filter_cells/samplesheet.csv")

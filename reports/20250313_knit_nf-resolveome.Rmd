@@ -32,11 +32,10 @@ library(ggplot2)
 ```{r load_data}
 # get metadata
 ss <-
-  readr::read_csv("out/nf-resolveome/samplesheet.csv") %>%
-  # we are interested in dna only for now
-  dplyr::filter(seq_type == "dnahyb") %>%
+  dplyr::bind_rows(readr::read_csv("out/nf-resolveome/dnahyb/samplesheet.csv"),
+                   readr::read_csv("out/nf-resolveome/dna/samplesheet.csv")) %>%
   dplyr::mutate(
-    out_dir = file.path("out/nf-resolveome", donor_id, seq_type, id),
+    out_dir = file.path("out/nf-resolveome", seq_type, donor_id, id),
     gene_covs = paste0(out_dir, "/genotyping/", id, "_gene_cov.tsv"),
     geno = paste0(out_dir, "/genotyping/", id, "_genotyped_mutations.tsv"),
     summary_txt = paste0(out_dir, "/mosdepth/", id, ".mosdepth.summary.txt"),
@@ -73,15 +72,21 @@ dat$geno <- split(dat$geno, dat$geno$source)
 ```{r cov_mean}
 dat$summary_txt %>%
   dplyr::filter(chr %in% c("total", "total_region")) %>%
-  dplyr::mutate(lvl = ifelse(grepl("region$", chr), "region", "global"),
+  dplyr::left_join(ss) %>%
+  dplyr::mutate(region = ifelse(grepl("region$", chr), "immune panel", "genome-wide"),
+                seq_type = factor(seq_type, levels = c("dnahyb", "dna")),
                 chr = gsub("_.*", "", chr)) %>%
-  ggplot(aes(x = reorder(id, -mean), y = mean, fill = lvl)) +
+  ggplot(aes(x = reorder(cell_id, -mean), y = mean, fill = region)) +
   geom_col(position = "dodge") +
   theme_minimal() +
-  labs(title = "Mean coverage",
-       x = "Plex",
-       y = "Mean coverage") +
-  theme(axis.text.x = element_text(angle = -90, hjust = 0))
+  labs(x = "cell",
+       y = "mean coverage") +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  scale_y_continuous(expand = c(0, 0)) +
+  guides(x =  guide_axis(angle = -90)) +
+  facet_grid(seq_type ~ ., scales = "free_y") +
+  scale_fill_brewer(palette = "Set1")
 ```
 
 ```{r cov_dist}

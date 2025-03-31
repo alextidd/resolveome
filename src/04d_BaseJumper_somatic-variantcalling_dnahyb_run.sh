@@ -22,6 +22,8 @@ export LSB_EXCLUSIVE=Y
     --dnascope_model_selection bioskryb129 \
     --mode exome \
     --exome_panel TWIST_immune \
+    --skip_variant_annotation false \
+    --skip_sigprofile false \
     -c $wd/config/bj-somatic-variantcalling.config \
     -c $wd/config/basejumper.config \
     -w $wd/work/BaseJumper/bj-somatic-variantcalling/all_cells/dnahyb/ \
