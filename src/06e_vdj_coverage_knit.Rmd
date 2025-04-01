@@ -15,8 +15,8 @@ output:
 
 
 ```{r setup, include = F, message = F, warning = F, echo = F}
-# rmarkdown::render('src/06d_vdj_coverage_knit.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_coverage/all_cells/', params = list(out_dir = 'out/vdj_coverage/all_cells/'))
-# rmarkdown::render('src/06d_vdj_coverage_knit.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_coverage/filter_cells/', params = list(out_dir = 'out/vdj_coverage/filter_cells/'))
+# rmarkdown::render('src/06e_vdj_coverage_knit.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_coverage/all_cells/', params = list(out_dir = 'out/vdj_coverage/all_cells/'))
+# rmarkdown::render('src/06e_vdj_coverage_knit.Rmd', output_file = 'VDJ_coverage.html', output_dir = 'out/vdj_coverage/filter_cells/', params = list(out_dir = 'out/vdj_coverage/filter_cells/'))
 
 # chunk options
 knitr::opts_knit$set(root.dir = "../")

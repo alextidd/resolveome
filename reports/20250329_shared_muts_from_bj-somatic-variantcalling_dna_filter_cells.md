@@ -1,7 +1,7 @@
 ---
 title: "Shared mutations from the bj-somatic-variantcalling WGS output on filtered cells"
 author: "Alexandra Tidd"
-date: "29 March, 2025"
+date: "31 March, 2025"
 output:
   html_document:
     fig_width: 8
@@ -85,7 +85,11 @@ multiqc %>%
   theme_classic() +
   scale_y_continuous(expand = c(0, 0)) +
   labs(x = "", y = "mean coverage")
+```
 
+![](/lustre/scratch125/casm/team268im/at31/resolveome/reports/20250329_shared_muts_from_bj-somatic-variantcalling_dna_filter_cells_files/figure-html/multiqc-1.png)<!-- -->
+
+``` r
 multiqc %>%
   dplyr::left_join(metadata) %>%
   dplyr::mutate(chr_dropout = ifelse(chr_dropout, "chr dropout",
@@ -98,6 +102,8 @@ multiqc %>%
   scale_y_continuous(expand = c(0, 0)) +
   labs(x = "", y = "heterozygous SNP sensitivity")
 ```
+
+![](/lustre/scratch125/casm/team268im/at31/resolveome/reports/20250329_shared_muts_from_bj-somatic-variantcalling_dna_filter_cells_files/figure-html/multiqc-2.png)<!-- -->
 
 # `BaseJumper` somatic variant calls
 
@@ -150,7 +156,7 @@ vafs <- xfun::cache_rds({
 
 # Variant annotation
 
-We annotate the variants using `dndscv`.
+We annotate the variants using `dndscv` and a common SNP database.
 
 
 ``` r
@@ -158,7 +164,18 @@ refdb_file <-
   "../reference/dndscv/RefCDS_human_GRCh38_GencodeV18_recommended.rda"
 vafs <-
   xfun::cache_rds({
+    # load common SNPs
+    common_snps_file <-
+      "/lustre/scratch125/casm/team268im/fa8/117/NOVASEQX_MASKS/NEW_MASKS_wNSX_OCT2024/GRCh38_WGNS/SNP_GRCh38.wgns.bed.gz"
+    common_snps <-
+      gzfile(common_snps_file) %>%
+      readr::read_tsv(col_names = c("#CHROM", "START", "POS")) %>%
+      dplyr::transmute(chr = `#CHROM`, pos = POS, common_snp = TRUE) %>%
+      dplyr::distinct()
+    
+    # annotate variants
     vafs %>%
+      # run dndscv
       dplyr::transmute(sampleID = id, chr = gsub("chr", "", chr), pos, ref,
                        mut = alt) %>%
       dplyr::distinct() %>%
@@ -169,8 +186,11 @@ vafs <-
       dplyr::transmute(chr = paste0("chr", chr), pos, ref, alt = mut, gene, pid,
                        id = sampleID, aachange, ntchange, codonsub, impact) %>%
       dplyr::full_join(vafs) %>%
+      # annotate common SNPs
+      dplyr::left_join(common_snps) %>%
       dplyr::mutate(impact = ifelse(is.na(impact), "Non-coding", impact) %>%
                       factor(levels = rev(names(impact_colours))),
+                    common_snp = ifelse(is.na(common_snp), FALSE, common_snp),
                     mut_id = paste(chr, pos, ref, alt, sep = "-"))
   }, file = "vafs_annotated.rds", rerun = params$rerun)
 ```
@@ -234,6 +254,18 @@ plot_mut_trinucs(vafs_trinuc, "All cells")
 ```
 
 ![](/lustre/scratch125/casm/team268im/at31/resolveome/reports/20250329_shared_muts_from_bj-somatic-variantcalling_dna_filter_cells_files/figure-html/plot_spectra-1.png)<!-- -->
+
+## Plot trinucleotide spectrum (all cells, shared mutations)
+
+
+``` r
+vafs_trinuc %>%
+  dplyr::group_by(chr, pos, ref, alt) %>%
+  dplyr::filter(dplyr::n() > 1) %>%
+  plot_mut_trinucs("All cells, shared mutations")
+```
+
+![](/lustre/scratch125/casm/team268im/at31/resolveome/reports/20250329_shared_muts_from_bj-somatic-variantcalling_dna_filter_cells_files/figure-html/plot_spectra_shared-1.png)<!-- -->
 
 ## Plot trinucleotide spectrum per celltype
 
@@ -304,7 +336,7 @@ p_dat_shared <-
   dplyr::mutate(prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
   # shared mutations
   dplyr::filter(n_cells_w_mut > 1)
-p <- plot_vaf_heatmap(p_dat_shared, "all shared muts", show_rownames = TRUE)
+p <- plot_vaf_heatmap(p_dat_shared, "all shared muts")
 print(p)
 ```
 
@@ -321,11 +353,24 @@ p_dat_shared_filtered <-
   p_dat_shared %>%
   dplyr::filter(prop_cells_w_mut < 0.3)
 p <- plot_vaf_heatmap(p_dat_shared_filtered,
-                      "shared muts (% cells w mut < 0.3)", TRUE)
+                      "shared muts (% cells w mut < 0.3)")
 print(p)
 ```
 
 ![](/lustre/scratch125/casm/team268im/at31/resolveome/reports/20250329_shared_muts_from_bj-somatic-variantcalling_dna_filter_cells_files/figure-html/plot_vaf_heatmap_shared_filtered-1.png)<!-- -->
+
+## Plot shared mutations (common SNPs removed)
+
+
+``` r
+p <-
+  p_dat_shared %>%
+  dplyr::filter(!common_snp) %>%
+  plot_vaf_heatmap("shared muts (common SNPs removed)")
+p
+```
+
+![](/lustre/scratch125/casm/team268im/at31/resolveome/reports/20250329_shared_muts_from_bj-somatic-variantcalling_dna_filter_cells_files/figure-html/plot_vaf_heatmap_shared_no_common-1.png)<!-- -->
 
 ## Plot coding shared mutations (all cells)
 
@@ -404,6 +449,37 @@ vafs %>%
 |chr3-16377835-G-A  |RFTN1 |plate3_wellE10_dna_run49882 |P237S    |C709T    |CCC>TCC  |Missense |        18|        19| 0.5135135|
 |chr4-105234912-C-T |TET2  |plate3_wellE11_dna_run49882 |Q324*    |C970T    |CAA>TAA  |Nonsense |         5|        11| 0.6875000|
 |chr6-31581846-G-A  |LTB   |plate3_wellH5_dna_run49882  |A59V     |C176T    |GCC>GTC  |Missense |         5|         6| 0.5454545|
+
+# Case study: plate3_wellD4 + plate3_wellE11
+
+
+``` r
+clone_vafs <-
+  vafs %>%
+  dplyr::group_by(chr, pos, ref, alt) %>%
+  dplyr::mutate(cell_ids = paste(sort(unique(cell_id)), collapse = ",")) %>%
+  dplyr::filter(cell_ids == "plate3_wellD4,plate3_wellE11") %>%
+  dplyr::ungroup()
+clone_vafs %>%
+  dplyr::count(chr)
+```
+
+```
+## # A tibble: 23 × 2
+##    chr       n
+##    <chr> <int>
+##  1 chr1     16
+##  2 chr10    34
+##  3 chr11    44
+##  4 chr12    18
+##  5 chr13    10
+##  6 chr14    18
+##  7 chr15     8
+##  8 chr16    18
+##  9 chr17    12
+## 10 chr18     4
+## # ℹ 13 more rows
+```
 
 # Beta binomial
 

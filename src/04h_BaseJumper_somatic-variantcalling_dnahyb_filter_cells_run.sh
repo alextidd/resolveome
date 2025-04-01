@@ -29,6 +29,7 @@ export LSB_EXCLUSIVE=Y
     -profile singularity \
     --architecture "x86_64" \
     -resume \
+    -with-tower \
     -N at31@sanger.ac.uk
 )
 

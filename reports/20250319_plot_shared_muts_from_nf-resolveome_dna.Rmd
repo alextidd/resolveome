@@ -259,10 +259,7 @@ p <- pheatmap::pheatmap(
   annotation_row = annotation_row,
   annotation_col = annotation_col,
   color = colorRampPalette(c("white", "blue"))(50))
-
-pdf("test.pdf", width = 12, height = 10)
-p
-dev.off()
+print(p)
 ```
 
 We generate a heatmap of the mutations.

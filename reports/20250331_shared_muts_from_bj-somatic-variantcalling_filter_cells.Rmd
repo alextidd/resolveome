@@ -1,5 +1,5 @@
 ---
-title: "Shared mutations from the bj-somatic-variantcalling WGS output on filtered cells"
+title: "Shared mutations from the bj-somatic-variantcalling DNA + targeted DNA output on filtered cells"
 author: "Alexandra Tidd"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -16,14 +16,14 @@ params:
 ---
 
 ```{r setup, include = F}
-# rmarkdown::render('reports/20250329_shared_muts_from_bj-somatic-variantcalling_dna_filter_cells.Rmd', output_file = '20250329_shared_muts_from_bj-somatic-variantcalling_dna_filter_cells.html', output_dir = 'reports/')
+# rmarkdown::render('reports/20250331_shared_muts_from_bj-somatic-variantcalling_filter_cells.Rmd', output_file = '20250331_shared_muts_from_bj-somatic-variantcalling_filter_cells.html', output_dir = 'reports/')
 
 # chunk options
 knitr::opts_knit$set(root.dir = "../")
 knitr::opts_chunk$set(warning = FALSE,
                       dpi = 600,
                       message = FALSE,
-                      cache.path = "reports/20250329_shared_muts_from_bj-somatic-variantcalling_dna_filter_cells_cache/")
+                      cache.path = "reports/20250331_shared_muts_from_bj-somatic-variantcalling_filter_cells_cache/")
 
 # set buffer for reading long lines in vcfs
 Sys.setenv("VROOM_CONNECTION_SIZE" = 2^20) # 1MB buffer
@@ -34,6 +34,7 @@ library(ggplot2)
 library(dndscv)
 library(GenomicRanges)
 library(ggtree)
+library(dplyr)
 
 # palettes
 impact_colours <- c("Essential_Splice" = "#8e55a3",
@@ -47,22 +48,22 @@ impact_colours <- c("Essential_Splice" = "#8e55a3",
 get_mut_trinucs <- function(dat) {
   dat %>%
     # get snps only
-    dplyr::filter(nchar(ref) == 1, nchar(alt) == 1) %>%
+    filter(nchar(ref) == 1, nchar(alt) == 1) %>%
     # get the trinucleotide context
-    dplyr::rowwise() %>%
-    dplyr::mutate(
+    rowwise() %>%
+    mutate(
       trinuc_ref = Rsamtools::scanFa("data/gatk/grch38/genome.fa",
                                      GRanges(chr, IRanges(pos - 1,
                                                           pos + 1))) %>%
                     as.vector()) %>%
-    dplyr::ungroup() %>%
+    ungroup() %>%
     # annotate the mutation from the pyrimidine base
-    dplyr::mutate(
+    mutate(
       sub = paste(ref, alt, sep = ">"),
-      sub_py = dplyr::case_when(
+      sub_py = case_when(
         ref %in% c("A", "G") ~ chartr("TCGA", "AGCT", sub),
         TRUE ~ sub),
-      trinuc_ref_py = dplyr::case_when(
+      trinuc_ref_py = case_when(
         ref %in% c("A", "G") ~ chartr("TCGA", "AGCT", trinuc_ref),
         TRUE ~ trinuc_ref))
 }
@@ -76,16 +77,16 @@ plot_mut_trinucs <- function(p_dat, p_title = "") {
   py_nucs <- c("C", "T")
   all_subs <-
     expand.grid(do.call(paste0, expand.grid(nucs, py_nucs, nucs)), nucs) %>%
-    dplyr::transmute(trinuc_ref_py = Var1, ref = substr(Var1, 2, 2), alt = Var2,
+    transmute(trinuc_ref_py = Var1, ref = substr(Var1, 2, 2), alt = Var2,
                      sub_py = paste0(ref, ">", alt)) %>%
-    dplyr::filter(alt != ref)
+    filter(alt != ref)
 
   p_dat %>%
-    dplyr::mutate(n_cells = dplyr::n_distinct(id)) %>%
-    dplyr::add_count(mut_id, name = "n_cells_w_mut") %>%
-    dplyr::count(sub_py, trinuc_ref_py) %>%
-    dplyr::right_join(all_subs) %>%
-    dplyr::mutate(n = ifelse(is.na(n), 0, n)) %>%
+    mutate(n_cells = n_distinct(id)) %>%
+    add_count(mut_id, name = "n_cells_w_mut") %>%
+    count(sub_py, trinuc_ref_py) %>%
+    right_join(all_subs) %>%
+    mutate(n = ifelse(is.na(n), 0, n)) %>%
     ggplot(aes(x = trinuc_ref_py, y = n, fill = sub_py)) +
     geom_col() +
     facet_grid(~ sub_py, scales = "free_x") +
@@ -104,19 +105,19 @@ plot_vaf_heatmap <- function(p_dat, p_title, show_rownames = FALSE) {
   # reshape data for heatmap
   heatmap_data <-
     p_dat %>%
-    dplyr::mutate(mut_id = paste0(ifelse(is.na(gene), "", paste0(gene, "-")), mut_id)) %>%
-    dplyr::add_count(mut_id, name = "n_cells_w_mut") %>%
+    mutate(mut_id = paste0(ifelse(is.na(gene), "", paste0(gene, "-")), mut_id)) %>%
+    add_count(mut_id, name = "n_cells_w_mut") %>%
     reshape2::dcast(mut_id + n_cells_w_mut ~ id, value.var = "alt_vaf")
   rownames(heatmap_data) <- heatmap_data$mut_id
   heatmap_matrix <- as.matrix(heatmap_data[, -c(1:3)]) # drop annotations
-  n_total_muts <- dplyr::n_distinct(p_dat$mut_id)
-  n_total_cells <- dplyr::n_distinct(p_dat$id)
+  n_total_muts <- n_distinct(p_dat$mut_id)
+  n_total_cells <- n_distinct(p_dat$id)
 
   # calculate the number of mutations per column (id)
   annotation_col <-
     p_dat %>%
-    dplyr::count(id, run_id, celltype, loh_1p, name = "n_muts") %>%
-    dplyr::mutate(run_id = as.character(run_id)) %>%
+    count(id, run_id, celltype, loh_1p, name = "n_muts") %>%
+    mutate(run_id = as.character(run_id)) %>%
     tibble::column_to_rownames("id")
 
   # replace NAs with 0
@@ -140,13 +141,25 @@ plot_vaf_heatmap <- function(p_dat, p_title, show_rownames = FALSE) {
 }
 ```
 
-We pick out a BaseJumper run.
+We load mutations generated by previous reports and we combine the calls.
 
-```{r bj_dir}
-# get the latest run
-bj_dir <- "out/BaseJumper/bj-somatic-variantcalling/filter_cells/dna/"
-bj_run_dir <- file.path(bj_dir, "PD63118_250328_112954")
-vcfs_subdir <- "/SOMATIC_VARIANT_WORKFLOW_Heuristic_Filter_SUBSET_VCF_VARIANTS/"
+```{r load_vafs}
+# load vafs
+vafs <-
+  c("dna", "dnahyb") %>%
+  purrr::set_names() %>%
+  purrr::map(~
+    system(paste0("ls reports/*_shared_muts_from_bj-somatic-variantcalling_",
+           .x, "_filter_cells_cache/vafs_annotated_*.rds"), intern = TRUE) %>%
+      readRDS()) %>%
+  bind_rows() %>%
+  select(-c(id, alt_vaf)) %>%
+  group_by(across(-matches("_depth$"))) %>%
+  summarise(across(matches("_depth$"), \(x) sum(x, na.rm = TRUE))) %>%
+  ungroup() %>%
+  mutate(alt_vaf = alt_depth / total_depth) %>%
+  # remove common snp vars
+  dplyr::filter(!common_snp)
 ```
 
 We load the samplesheet.
@@ -154,13 +167,13 @@ We load the samplesheet.
 ```{r load_data}
 man_insp <-
   readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
-  dplyr::select(-id, -run_id)
+  select(-id, -run_id)
 metadata <-
   readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
-  dplyr::left_join(man_insp) %>%
-  dplyr::mutate(
+  left_join(man_insp) %>%
+  mutate(
     # define celltypes
-    celltype = dplyr::case_when(
+    celltype = case_when(
       celltype_VDJ_recomb == "alpha-beta T cell" ~ "T cell",
       celltype_VDJ_recomb == "B cell" & celltype_SHM == "mature B cell" ~
         "mature B cell",
@@ -168,7 +181,7 @@ metadata <-
         "non-mature B cell",
       TRUE ~ "uncertain"),
     # define 1p_loh
-    loh_1p = dplyr::case_when(`1p_loh` ~ "1p LOH", !`1p_loh` ~ "no 1p LOH",
+    loh_1p = case_when(`1p_loh` ~ "1p LOH", !`1p_loh` ~ "no 1p LOH",
                               TRUE ~ "unknown"))
 ss <-
   readr::read_csv(file.path(bj_dir, "samplesheet.csv"))
@@ -181,132 +194,6 @@ driver_genes <-
   readLines("../trencadis-seq/data/thyroid/driver_genes/driver_genes.txt")
 ```
 
-# `MultiQC`
-
-We load the `multiqc` output.
-
-```{r multiqc, fig.width = 8, eval = T}
-multiqc <-
-  paste0(bj_run_dir, "/multiqc/multiqc_data/multiqc_PROJECT ID PLOT_TITLE_1.txt") %>%
-  readr::read_tsv() %>%
-  dplyr::rename(id = Sample) %>%
-  dplyr::left_join(metadata %>% dplyr::select(-bam)) 
-
-multiqc %>%
-  # clean
-  dplyr::filter(!chr_dropout, !suspected_doublet) %>%
-  ggplot(aes(x = reorder(id, -MEAN_COVERAGE), y = MEAN_COVERAGE)) +
-  geom_col() +
-  geom_errorbar(aes(ymin = MEAN_COVERAGE - SD_COVERAGE,
-                    ymax = MEAN_COVERAGE + SD_COVERAGE),
-                width = 0.2) +
-  guides(x = guide_axis(angle = -90)) +
-  theme_classic() +
-  scale_y_continuous(expand = c(0, 0)) +
-  labs(x = "", y = "mean coverage")
-
-multiqc %>%
-  dplyr::left_join(metadata) %>%
-  dplyr::mutate(chr_dropout = ifelse(chr_dropout, "chr dropout",
-                                     "no chr dropout")) %>%
-  ggplot(aes(x = reorder(id, -HET_SNP_SENSITIVITY), y = HET_SNP_SENSITIVITY)) +
-  geom_col() +
-  facet_grid(~ chr_dropout, scales = "free_x", space = "free_x") +
-  guides(x = guide_axis(angle = -90)) +
-  theme_classic() +
-  scale_y_continuous(expand = c(0, 0)) +
-  labs(x = "", y = "heterozygous SNP sensitivity")
-```
-
-# `BaseJumper` somatic variant calls
-
-We load the variants and add cell-level metadata.
-
-```{r load_vars}
-# get vafs, add cell-level metadata
-vafs <- xfun::cache_rds({
-  ss$biosampleName %>%
-    purrr::set_names() %>%
-    purrr::map(function(id) {
-      vcf_file <-
-        paste0(bj_run_dir, vcfs_subdir, id, "_somatic_filtered_variants.vcf.gz")
-      if (file.exists(vcf_file)) {
-        vcf <-
-          readr::read_tsv(vcf_file, comment = "##") %>%
-          {split(., .$FORMAT)} %>%
-          purrr::map(function(vcf_i) {
-            format_i <- stringr::str_split_1(unique(vcf_i$FORMAT), ":")
-            vcf_i %>%
-              dplyr::mutate(gt = get(id)) %>%
-              tidyr::separate_wider_delim("gt", delim = ":", names = format_i) %>%
-              janitor::clean_names() %>%
-              dplyr::mutate(chr = number_chrom, total_depth = dp,
-                            allele = paste(ref, alt, sep = ","),
-                            alt = gsub(",.*", "", alt)) %>%
-              tidyr::separate_longer_delim(cols = c("allele", "ad"),
-                                           delim = ",") %>%
-              dplyr::select(chr, pos, ref, alt, allele, total_depth, ad) %>%
-              dplyr::mutate(name = dplyr::case_when(allele == ref ~ "ref_depth",
-                                                    allele == alt ~ "alt_depth",
-                                                    TRUE ~ "other_depth")) %>%
-              dplyr::filter(name != "other_depth") %>%
-              tidyr::pivot_wider(
-                names_from = "name", values_from = "ad",
-                id_cols = c("chr", "pos", "ref", "alt", "total_depth")) %>%
-              readr::type_convert() %>%
-              dplyr::mutate(alt_vaf = alt_depth / total_depth)
-          }) %>%
-          dplyr::bind_rows()
-      }
-    }) %>%
-    purrr::compact() %>%
-    dplyr::bind_rows(.id = "id") %>%
-    # annotate celltypes
-    dplyr::left_join(metadata)
-  }, file = "vafs.rds", rerun = params$rerun)
-```
-
-# Variant annotation
-
-We annotate the variants using `dndscv` and a common SNP database.
-
-```{r annot_muts}
-refdb_file <-
-  "../reference/dndscv/RefCDS_human_GRCh38_GencodeV18_recommended.rda"
-vafs <-
-  xfun::cache_rds({
-    # load common SNPs
-    common_snps_file <-
-      "/lustre/scratch125/casm/team268im/fa8/117/NOVASEQX_MASKS/NEW_MASKS_wNSX_OCT2024/GRCh38_WGNS/SNP_GRCh38.wgns.bed.gz"
-    common_snps <-
-      gzfile(common_snps_file) %>%
-      readr::read_tsv(col_names = c("#CHROM", "START", "POS")) %>%
-      dplyr::transmute(chr = `#CHROM`, pos = POS, common_snp = TRUE) %>%
-      dplyr::distinct()
-
-    # annotate variants
-    vafs %>%
-      # run dndscv
-      dplyr::transmute(sampleID = id, chr = gsub("chr", "", chr), pos, ref,
-                       mut = alt) %>%
-      dplyr::distinct() %>%
-      dndscv(refdb = refdb_file, outp = 1,
-             max_coding_muts_per_sample = Inf,
-             max_muts_per_gene_per_sample = Inf) %>%
-      {.$annotmuts} %>%
-      dplyr::select(-sampleID) %>%
-      dplyr::distinct() %>%
-      dplyr::mutate(chr = paste0("chr", chr)) %>%
-      dplyr::full_join(vafs) %>%
-      # annotate common SNPs
-      dplyr::left_join(common_snps) %>%
-      dplyr::mutate(impact = ifelse(is.na(impact), "Non-coding", impact) %>%
-                      factor(levels = rev(names(impact_colours))),
-                    common_snp = ifelse(is.na(common_snp), FALSE, common_snp),
-                    mut_id = paste(chr, pos, ref, alt, sep = "-"))
-  }, file = "vafs_annotated.rds", rerun = params$rerun)
-```
-
 # Mutation types per cell
 
 Plot the distribution of mutation types per cell.
@@ -314,7 +201,7 @@ Plot the distribution of mutation types per cell.
 ```{r plot_mut_types_all, fig.width = 12}
 # all muts
 vafs %>%
-  dplyr::add_count(id) %>%
+  add_count(id) %>%
   ggplot(aes(x = reorder(id, -n), fill = impact)) +
   geom_bar() +
   scale_fill_manual(values = impact_colours) +
@@ -327,8 +214,8 @@ vafs %>%
 ```{r plot_mut_types_coding, fig.width = 12}
 # coding muts
 vafs %>%
-  dplyr::filter(impact != "Non-coding") %>%
-  dplyr::add_count(id) %>%
+  filter(impact != "Non-coding") %>%
+  add_count(id) %>%
   ggplot(aes(x = reorder(id, -n), fill = impact)) +
   geom_bar() +
   scale_fill_manual(values = impact_colours) +
@@ -345,7 +232,7 @@ Plot the VAF distribution.
 ```{r plot_vaf_dist, fig.height = 4, fig.width = 5}
 c(1, 5, 10, 20, 50) %>%
   purrr::walk(function(min_total_depth) {
-    p_dat <- vafs %>% dplyr::filter(total_depth >= min_total_depth)
+    p_dat <- vafs %>% filter(total_depth >= min_total_depth)
     p <-
       p_dat %>%
       ggplot(aes(x = alt_vaf)) +
@@ -371,11 +258,11 @@ print(p)
 ```{r plot_vaf_heatmap_shared, fig.height = 6, fig.width = 10}
 p_dat_shared <-
   vafs %>%
-  dplyr::mutate(n_cells = dplyr::n_distinct(id)) %>%
-  dplyr::add_count(mut_id, name = "n_cells_w_mut") %>%
-  dplyr::mutate(prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
+  mutate(n_cells = n_distinct(id)) %>%
+  add_count(mut_id, name = "n_cells_w_mut") %>%
+  mutate(prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
   # shared mutations
-  dplyr::filter(n_cells_w_mut > 1)
+  filter(n_cells_w_mut > 1)
 p <- plot_vaf_heatmap(p_dat_shared, "all shared muts")
 print(p)
 ```
@@ -388,7 +275,7 @@ present in <30% of cells.
 ```{r plot_vaf_heatmap_shared_filtered, fig.height = 6, fig.width = 10}
 p_dat_shared_filtered <-
   p_dat_shared %>%
-  dplyr::filter(prop_cells_w_mut < 0.3)
+  filter(prop_cells_w_mut < 0.3)
 p <- plot_vaf_heatmap(p_dat_shared_filtered,
                       "shared muts (% cells w mut < 0.3)")
 print(p)
@@ -399,7 +286,7 @@ print(p)
 ```{r plot_vaf_heatmap_shared_no_common, fig.height = 6, fig.width = 10}
 p <-
   p_dat_shared %>%
-  dplyr::filter(!common_snp) %>%
+  filter(!common_snp) %>%
   plot_vaf_heatmap("shared muts (common SNPs removed)")
 p
 ```
@@ -410,7 +297,7 @@ p
 # look at coding muts
 p_dat_coding <-
   p_dat_shared %>%
-  dplyr::filter(impact != "Non-coding")
+  filter(impact != "Non-coding")
 p <- plot_vaf_heatmap(p_dat_coding, "shared coding muts (all cells)", TRUE)
 print(p)
 ```
@@ -438,8 +325,8 @@ plot_mut_trinucs(vafs_trinuc, "All cells")
 
 ```{r plot_spectra_shared, fig.height = 5, fig.width = 11}
 vafs_trinuc %>%
-  dplyr::group_by(chr, pos, ref, alt) %>%
-  dplyr::filter(dplyr::n() > 1) %>%
+  group_by(chr, pos, ref, alt) %>%
+  filter(n() > 1) %>%
   plot_mut_trinucs("All cells, shared mutations")
 ```
 
@@ -491,8 +378,8 @@ purrr::walk2(clones, tip_pal, function(clone, col) {
 # colour celltypes
 tip_annotations <-
   metadata %>%
-  dplyr::filter(id %in% tree$tip.label) %>%
-  dplyr::mutate(celltype = ifelse(is.na(celltype), "other", celltype)) %>% 
+  filter(id %in% tree$tip.label) %>%
+  mutate(celltype = ifelse(is.na(celltype), "other", celltype)) %>% 
   {split(.$id, .$celltype)}
 tip_annotations <- tip_annotations[tree$tip.label]
 
@@ -505,8 +392,8 @@ ape::axisPhylo(side = 1, backward = FALSE)
 
 ```{r drivers}
 vafs %>%
-  dplyr::filter(gene %in% driver_genes) %>%
-  dplyr::select(mut_id, gene, id, aachange, ntchange, codonsub, impact,
+  filter(gene %in% driver_genes) %>%
+  select(mut_id, gene, id, aachange, ntchange, codonsub, impact,
                 ref_depth, alt_depth, alt_vaf) %>%
   knitr::kable()
 ```
@@ -516,12 +403,12 @@ vafs %>%
 ```{r case_study}
 clone_vafs <-
   vafs %>%
-  dplyr::group_by(chr, pos, ref, alt) %>%
-  dplyr::mutate(cell_ids = paste(sort(unique(cell_id)), collapse = ",")) %>%
-  dplyr::filter(cell_ids == "plate3_wellD4,plate3_wellE11") %>%
-  dplyr::ungroup()
+  group_by(chr, pos, ref, alt) %>%
+  mutate(cell_ids = paste(sort(unique(cell_id)), collapse = ",")) %>%
+  filter(cell_ids == "plate3_wellD4,plate3_wellE11") %>%
+  ungroup()
 clone_vafs %>%
-  dplyr::count(chr)
+  count(chr)
 ```
 
 # Beta binomial

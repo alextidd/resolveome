@@ -8,7 +8,7 @@ wd=$(pwd)
   nextflow run $wd/../nextflow/nf-mosdepth \
     --samplesheet samplesheet.csv \
     --bait_set ../regions/ig_tcr_genes.bed \
-    --fasta /lustre/scratch124/casm/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCh38_full_analysis_set_plus_decoy_hla/genome.fa \
+    --fasta /lustre/scratch124/casm/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCh37d5/genome.fa \
     --location local \
     --out_dir ./ \
     -w $wd/work/mosdepth/all_cells/ \
