@@ -9,10 +9,11 @@ wd <- getwd()
 out_dir <- file.path(wd, "out/nf-resolveome/")
 dir.create(out_dir, showWarnings = FALSE)
 
-# get clean cells only
+# get clean cells only (and cells that have not yet been assessed)
 clean_cell_ids <-
   readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
-  dplyr::filter(!suspected_doublet, !chr_dropout) %>%
+  dplyr::filter(!suspected_doublet | is.na(suspected_doublet),
+                !chr_dropout | is.na(chr_dropout)) %>%
   dplyr::pull(cell_id)
 
 # samplesheet
@@ -81,7 +82,7 @@ caveman_snps <-
 
 # get mutations
 nanoseq_muts <-
-  readr::read_csv("data/nanoseq/mutations2genotype.csv") %>%
+  readr::read_csv("data/nanoseq/mutations2genotype_20250219.csv") %>%
   # get unique mutations
   dplyr::distinct() %>%
   dplyr::mutate(donor_id = donor_id_i) %>%
@@ -92,8 +93,8 @@ nanoseq_muts <-
 
 # write mutations
 snps_file <- file.path(out_dir, donor_id_i, "caveman_snps.tsv")
-muts_file <- file.path(out_dir, donor_id_i, "nanoseq_mutations.tsv")
 readr::write_tsv(caveman_snps, snps_file)
+muts_file <- file.path(out_dir, donor_id_i, "nanoseq_mutations.tsv")
 readr::write_tsv(nanoseq_muts, muts_file)
 
 # write samplesheets

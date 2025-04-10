@@ -9,8 +9,9 @@ wd=$(pwd)
   cd out/nf-resolveome/dna/
   nextflow run $wd/../nextflow/nf-resolveome \
     --samplesheet samplesheet.csv \
-    --bait_set $wd/data/immune_panel/Probes_merged_ok_combined_Sanger_Immune-v1_TE-91661256_hg19.bed \
-    --genes TNFRSF14,CD274,LTB,TNFAIP3,TET2,DUSP2,CCR6,DNMT3A,RFTN1,CBL,RASA2,CXCR3,ACTG1,KLHL6 \
+    --bait_set_hyb $wd/data/immune_panel/Probes_merged_ok_combined_Sanger_Immune-v1_TE-91661256_hg19.bed \
+    --bait_set_vdj $wd/out/vdj_coverage/regions/ig_tcr_genes.bed \
+    --genes $wd/data/driver_genes/PD63118_driver_genes.txt \
     --fasta /lustre/scratch124/casm/team78pipelines/canpipe/live/ref/Homo_sapiens/GRCh37d5/genome.fa \
     --location local \
     --out_dir ./ \

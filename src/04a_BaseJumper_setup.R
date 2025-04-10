@@ -13,7 +13,7 @@ ss <- readr::read_csv("data/resolveome/samplesheet_local.csv")
 # read manual inspection results, get clean cell ids (include all of plate 10)
 clean_cell_ids <-
   readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
-  dplyr::filter((!suspected_doublet & !chr_dropout) | grepl("^plate10_", id)) %>%
+  dplyr::filter((!suspected_doublet & !chr_dropout) | plate == 10) %>%
   dplyr::pull(cell_id) %>%
   unique()
 
@@ -31,33 +31,20 @@ ss_fastq <-
   {split(., .$filter_lvl)} %>%
   purrr::map(~ split(.x %>% dplyr::select(-seq_type, -filter_lvl), .x$seq_type))
 
-# save for bj-dna-qc dna
+# save all cells for bj-dna-qc dna
 ss_fastq$all_cells$dna %>%
   dplyr::select(biosampleName, read1, read2) %>%
   readr::write_csv("out/BaseJumper/bj-dna-qc/dna/samplesheet.csv")
 
-# save for bj-somatic-variantcalling dna
-ss_fastq$all_cells$dna %>%
-  readr::write_csv("out/BaseJumper/bj-somatic-variantcalling/all_cells/dna/samplesheet.csv")
-
-# save for bj-somatic-variantcalling dna filtered
+# save filtered cells for bj-somatic-variantcalling dna
 ss_fastq$filter_cells$dna %>%
-  readr::write_csv("out/BaseJumper/bj-somatic-variantcalling/filter_cells/dna/samplesheet.csv")
+  readr::write_csv("out/BaseJumper/bj-somatic-variantcalling/dna/samplesheet.csv")
 
-# save for bj-somatic-variantcalling dnahyb
-ss_fastq$all_cells$dnahyb %>%
-  readr::write_csv("out/BaseJumper/bj-somatic-variantcalling/all_cells/dnahyb/samplesheet.csv")
-
-# save for bj-somatic-variantcalling dnahyb filtered
+# save filtered cells for bj-somatic-variantcalling dnahyb
 ss_fastq$filter_cells$dnahyb %>%
-  readr::write_csv("out/BaseJumper/bj-somatic-variantcalling/filter_cells/dnahyb/samplesheet.csv")
+  readr::write_csv("out/BaseJumper/bj-somatic-variantcalling/dnahyb/samplesheet.csv")
 
-# create bj-expression samplesheet for rna
+# save all cells for bj-expression rna
 ss_fastq$all_cells$rna %>%
   dplyr::select(biosampleName, read1, read2) %>%
-  readr::write_csv("out/BaseJumper/bj-expression/samplesheet.csv")
-
-# create bj-expression samplesheet for rna filtered
-ss_fastq$filter_cells$rna %>%
-  dplyr::select(biosampleName, read1, read2) %>%
-  readr::write_csv("out/BaseJumper/bj-expression/filter_cells/samplesheet.csv")
+  readr::write_csv("out/BaseJumper/bj-expression/rna/samplesheet.csv")

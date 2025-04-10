@@ -1,0 +1,230 @@
+---
+title: "Shared mutations from the nf-resolveome genotyping output"
+author: "Alexandra Tidd"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    fig_width: 8
+    keep_md: true
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 4
+    theme: lumen
+---
+
+```{r setup, include = F}
+# rmarkdown::render('reports/20250408_plot_shared_muts_from_nf-resolveome.Rmd', output_file = '20250408_plot_shared_muts_from_nf-resolveome.html', output_dir = 'reports/')
+
+# chunk options
+knitr::opts_knit$set(root.dir = "../")
+knitr::opts_chunk$set(warning = FALSE,
+                      dpi = 600,
+                      message = FALSE)
+
+# libraries
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+source("bin/utils.R")
+
+# dndscv palette
+impact_colours <- c("Missense" = "#5f9fa0",
+                    "Nonsense" = "#682c8b",
+                    "Essential_Splice" = "#8e55a3",
+                    "Indels" = "#d4773f",
+                    "Synonymous" = "#b3b4b4",
+                    "Non-coding" = "#606060")
+```
+
+## Metadata
+
+We load the samplesheet and manual inspection results.
+
+```{r load_ss}
+man_insp <-
+  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
+  # filter out bad cells
+  filter((!chr_dropout | is.na(chr_dropout)) & (!suspected_doublet | is.na(suspected_doublet))) %>%
+  select(-c(run_id, id, seq_type)) %>%
+  # fix 1p_loh
+  mutate(loh_1p = as.character(as.numeric(`1p_loh`)))
+ss <-
+  readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
+  left_join(man_insp) %>%
+  distinct(id, cell_id, loh_1p, celltype_VDJ_recomb, celltype_SHM,
+           celltype_bj_expression)
+```
+
+We load the genotyping results.
+
+```{r load_geno}
+genos <-
+  c("dna", "dnahyb") %>%
+  purrr::set_names() %>%
+  purrr::map(function(seq_type) {
+    paste0("out/nf-resolveome/", seq_type, "/PD63118/genotyping/mutations/PD63118_annotated_mutations.tsv") %>%
+      readr::read_tsv()
+  }) %>%
+  bind_rows() %>%
+  left_join(ss) %>%
+  select(-c(id, mut_vaf)) %>%
+  group_by(across(-matches("_depth$"))) %>%
+  summarise(across(matches("_depth$"), \(x) sum(x, na.rm = TRUE))) %>%
+  ungroup() %>%
+  mutate(mut_vaf = mut_depth / total_depth)
+```
+
+We generate a heatmap of all mutations.
+
+```{r plot_heatmap, fig.width = 20, fig.height = 20}
+p <-
+  genos %>%
+  plot_vaf_heatmap(show_rownames = FALSE, p_title = "all mutations",
+                   annotations = c("loh_1p", "celltype_VDJ_recomb", "celltype_SHM", "celltype_bj_expression"))
+print(p)
+```
+
+We plot the VAF distribution of all mutations.
+
+```{r plot_vaf_dist}
+genos %>%
+  filter(mut_vaf > 0) %>%
+  ggplot(aes(x = mut_vaf)) +
+  geom_histogram() +
+  theme_classic()
+```
+
+We filter the mutations.
+
+```{r filter_muts}
+genos_filter <-
+  genos %>%
+  filter(mut_vaf > 0.2, mut_depth > 1)
+```
+
+We generate a heatmap of filtered mutations.
+
+```{r plot_heatmap_filtered, fig.width = 20, fig.height = 20}
+p <-
+  genos_filter %>%
+  plot_vaf_heatmap(show_rownames = FALSE,
+                   p_title = "filtered mutations",
+                   annotations = c("loh_1p", "celltype_VDJ_recomb", "celltype_SHM", "celltype_bj_expression"))
+print(p)
+```
+
+We plot the VAF distribution of filtered mutations.
+
+```{r plot_vaf_dist_filtered}
+genos_filter %>%
+  # annotate mutations on 1p
+  mutate(`on 1p + 1p LOH` = chr == "1" & pos < 123400000 & loh_1p == 1) %>%
+  ggplot(aes(x = mut_vaf, fill = `on 1p + 1p LOH`)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_fill_brewer(palette = "Set1")
+```
+
+We plot the distribution of mutations across celltypes.
+
+```{r plot_celltype_dist}
+genos_filter %>%
+  add_count(gene) %>%
+  ggplot(aes(x = reorder(gene, -n), fill = impact)) +
+  geom_bar() +
+  theme_classic() +
+  scale_fill_manual(values = impact_colours) +
+  facet_grid(celltype_VDJ_recomb ~ .) +
+  labs(x = "gene")
+```
+
+We generate a heatmap of the filtered, shared mutations.
+
+```{r plot_heatmap_shared, fig.width = 20, fig.height = 20}
+p <-
+  genos_filter %>%
+  filter(mut_depth > 0) %>%
+  group_by(chr, pos, ref, alt) %>%
+  filter(n() > 1) %>%
+  plot_vaf_heatmap(p_title = "filtered shared mutations",
+                   annotations = c("loh_1p", "celltype_VDJ_recomb",
+                                   "celltype_bj_expression"))
+print(p)
+```
+
+We generate a heatmap of the nonsynonymous mutations.
+
+```{r plot_nonsym, fig.width = 20, fig.height = 20}
+p <-
+  genos_filter %>%
+  filter(impact != "Synonymous") %>%
+  plot_vaf_heatmap("filtered non-synonymous mutations",
+                   annotations = c("loh_1p", "celltype_VDJ_recomb",
+                                   "celltype_bj_expression"))
+print(p)
+```
+
+We generate a heatmap of the TNFRSF14 mutations.
+
+```{r plot_heatmap_filtered_TNFRSF14, fig.width = 20, fig.height = 20}
+p <-
+  genos_filter %>%
+  filter(gene == "TNFRSF14") %>%
+  mutate(alt = paste(alt, aachange)) %>%
+  plot_vaf_heatmap("TNFRSF14 mutations",
+                   annotations = c("loh_1p", "celltype_VDJ_recomb",
+                                   "celltype_bj_expression"))
+print(p)
+```
+
+We generate a heatmap of the non-synonymous mutations in the TNFRSF14 gene.
+
+```{r plot_heatmap_filtered_TNFRSF14_nonsym, fig.width = 20, fig.height = 20}
+p <-
+  genos_filter %>%
+  filter(gene == "TNFRSF14", impact != "Synonymous") %>%
+  mutate(alt = paste(alt, aachange)) %>%
+  plot_vaf_heatmap("TNFRSF14 non-synonymous mutations",
+                   annotations = c("loh_1p", "celltype_VDJ_recomb",
+                                   "celltype_bj_expression"))
+print(p)
+```
+
+We plot the mutations per gene.
+
+```{r muts_per_gene}
+p_dat <-
+  genos_filter %>%
+  filter(impact != "Synonymous") %>%
+  group_by(gene) %>%
+  summarise(n_cells = n_distinct(cell_id)) %>%
+  mutate(prop_cells = n_cells / n_mat_b_cells)
+p2 <-
+  p_dat %>%
+  ggplot(aes(x = reorder(gene, -prop_cells), y = prop_cells)) +
+  geom_col(fill = "#d6630d") +
+  theme_classic() +
+  labs(x = "gene", y = "% of mature B cells with a driver mutation") +
+  scale_y_continuous(expand = c(0, 0))
+
+# mutations per gene
+p1 <-
+  genos_filter %>%
+  left_join(man_insp) %>%
+  add_count(gene, name = "total") %>%
+  count(gene, impact, total, celltype_SHM) %>%
+  mutate(impact = ifelse(impact == "no-SNV", "Synonymous", impact) %>% factor(levels = rev(names(impact_colours)))) %>%
+  left_join(p_dat %>% distinct(gene, prop_cells)) %>%
+  ggplot(aes(x = reorder(gene, -prop_cells), y = n, fill = impact)) +
+  geom_col() +
+  scale_fill_manual(values = impact_colours) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  labs(y = "n mutations")
+
+# plot
+p1 / p2
+```

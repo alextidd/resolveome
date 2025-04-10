@@ -11,6 +11,8 @@ output:
     toc_collapsed: true
     toc_depth: 4
     theme: lumen
+params:
+  out_dir: null
 ---
 
 
@@ -33,16 +35,15 @@ library(magrittr)
 wd <- getwd()
 plots <-
   system(paste0("ls ", wd, "/", params$out_dir,
-                "/PD63118/*/plots/*_binned_cov.png"),
+                "/PD63118/*/plots/*_mean_cov.png"),
          intern = TRUE) %>%
   tibble::tibble(plot = .) %>%
-  dplyr::mutate(name = basename(plot) %>% tools::file_path_sans_ext()) %>%
-  tidyr::separate_wider_delim(name, delim = "_", cols_remove = FALSE,
-                              names = c("run", "id", "chr", "class", "type"),
-                              too_many = "merge") %>%
-  dplyr::mutate(plex_n = as.numeric(gsub("plex", "", id)),
-                id = paste0(run, "_", id)) %>%
-  dplyr::arrange(run, plex_n) %>%
+  dplyr::mutate(name = basename(plot) %>% tools::file_path_sans_ext() %>% gsub("_mean_cov$", "", .)) %>%
+  tidyr::separate_wider_delim(
+    name, delim = "_", cols_remove = FALSE,
+    names = c("plate", "well", "seq_type", "run", "chr", "class")) %>%
+  dplyr::mutate(id = paste(plate, well, seq_type, run, sep = "_")) %>%
+  dplyr::arrange(plate, run, id) %>%
   dplyr::mutate(id = forcats::fct_inorder(id)) %>%
   {split(., .$id)} %>%
   purrr::map(~ split(.x, .x$class))

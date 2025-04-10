@@ -46,15 +46,89 @@ ss <-
 
 # load manual inspection data
 man_insp <-
-  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv")
+  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
+  # clean cells
+  filter(!chr_dropout | is.na(chr_dropout),
+         !suspected_doublet | is.na(suspected_doublet)) %>%
+  mutate(loh_1p = as.character(as.numeric(`1p_loh`))) %>%
+  select(cell_id, starts_with("celltype_"), TNFRSF14_mut, loh_1p) %>%
+  distinct() 
+```
+
+
+## Read and gene counts from RNA
+
+```{r read_and_gene_counts}
+# dirs
+bje_dir <- "out/BaseJumper/bj-expression/filter_cells/PD63118_250329_235910/"
+
+# load read counts
+read_counts <-
+  file.path(bje_dir, "read_counts/combined_read_counts.txt") %>%
+  readr::read_csv() %>%
+  transmute(id = sample_name, n = reads, name = "n reads")
+
+# load gene counts
+gene_counts <-
+  file.path(bje_dir, "secondary_analyses/quantification_salmon/df_gene_counts_salmon.tsv") %>%
+  readr::read_tsv() %>%
+  mutate(id = gsub("salmon_outdir_", "", File))
+gene_total_counts <-
+  gene_counts %>%
+  group_by(id) %>%
+  summarise(n = n_distinct(gene_symbol_gene_id), name = "n genes")
+
+# combine counts
+counts <-
+  bind_rows(read_counts, gene_total_counts) %>%
+  left_join(ss)
+
+# plot all runs
+counts %>%
+  # add reads per cell for ordering
+  left_join(read_counts %>% select(id, reads = n)) %>%
+  ggplot(aes(x = reorder(id, -reads), y = n, fill = run_id)) +
+  geom_col() +
+  guides(x = guide_axis(angle = -90)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "") +
+  facet_wrap(~ name, scales = "free_y", ncol = 1) +
+  theme_bw()
+
+# compare the metrics between runs
+counts %>%
+  ggplot(aes(x = run_id, y = n, fill = run_id)) +
+  geom_boxplot(outlier.colour = NA) +
+  geom_jitter(height = 0) +
+  facet_wrap(~ name, scales = "free_y", ncol = 2) +
+  theme(legend.position = "none") +
+  theme_bw()
+
+# compare the same cells between the two runs
+counts %>%
+  left_join(
+    counts %>%
+    filter(name == "n reads") %>%
+    group_by(cell_id) %>%
+    summarise(reads = max(n))) %>%
+  filter(plate == 3) %>%
+  ggplot(aes(x = reorder(cell_id, -reads), y = n, fill = run_id)) +
+  geom_col(position = "dodge") +
+  guides(x = guide_axis(angle = -90)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "") +
+  theme_bw() +
+  facet_grid(name ~ ., scales = "free_y")
 ```
 
 Plot n counts and n features per cell.
 
 ```{r}
+counts_file <- "out/BaseJumper/bj-expression/filter_cells/PD63118_250329_235910/secondary_analyses/quantification_htseq/matrix_gene_counts_starhtseq.txt"
+
 # load expression matrix
 expr  <-
-  counts %>%
+  counts_file %>%
   readr::read_tsv() %>%
   tidyr::separate_wider_delim(cols = "gene_id_gene_symbol", delim = "_", names = c("gene_id", "gene_symbol")) %>%
   dplyr::rename_with(~ stringr::str_replace(., "_rna_.*", ""))
@@ -68,12 +142,11 @@ cell_stats <-
     `total genes` = colSums(. > 0)     # Number of expressed genes per cell
   ) %>%
   tidyr::pivot_longer(cols = everything(), names_to = "metric", values_to = "value") %>%
-  dplyr::mutate(cell_id = rep(colnames(expr)[-c(1,2)], 2)) # Add cell labels
+  dplyr::mutate(cell_id = rep(colnames(expr)[-c(1, 2)], 2)) # Add cell labels
 
 # Plot
 cell_stats %>%
-  dplyr::left_join(man_insp) %>%
-  dplyr::filter(!chr_dropout, !suspected_doublet) %>%
+  dplyr::inner_join(man_insp) %>%
   dplyr::group_by(cell_id) %>%
   dplyr::mutate(arr = max(value)) %>%
   dplyr::ungroup() %>%
@@ -93,22 +166,21 @@ cell_stats %>%
 Next, we load the cell-gene count expression matrices.
 
 ```{r expr_mat}
-# get cells and the tnfrsf14 status
+# get cells and their tnfrsf14 status
 cells <-
   man_insp %>%
-  dplyr::filter(celltype_SHM == "mature B cell",
-                !suspected_doublet, !chr_dropout) %>%
+  dplyr::filter(celltype_VDJ_recomb == "B cell") %>%
   dplyr::rowwise() %>%
   dplyr::transmute(sample_id = cell_id, TNFRSF14_mut,
                    condition = factor(as.numeric(!is.na(TNFRSF14_mut)), levels = c("0", "1")))
 
-expr <-
-  counts %>%
+expr_cells <-
+  expr %>%
   dplyr::select(gene_id, gene_symbol, dplyr::any_of(cells$sample_id))
 
 # Ensure sample IDs in `cells` are in the same order as columns in `expr`
 expr_counts <-
-  expr %>%
+  expr_cells %>%
   column_to_rownames(var = "gene_id") %>%  # Use gene names as rownames
   dplyr::select(-gene_symbol)  # Remove gene_id if not needed
 

@@ -25,6 +25,7 @@ knitr::opts_chunk$set(warning = FALSE,
 # libraries
 library(magrittr)
 library(ggplot2)
+library(dplyr)
 ```
 
 We load the samplesheet.
@@ -62,29 +63,29 @@ vafs <-
         purrr::map(function(vcf_i) {
           format_i <- stringr::str_split_1(unique(vcf_i$FORMAT), ":")
           vcf_i %>%
-            dplyr::mutate(gt = get(id)) %>%
+            mutate(gt = get(id)) %>%
             tidyr::separate_wider_delim("gt", delim = ":", names = format_i) %>%
             janitor::clean_names() %>%
-            dplyr::mutate(chr = number_chrom, total_depth = dp,
+            mutate(chr = number_chrom, total_depth = dp,
                           allele = paste(ref, alt, sep = ","),
                           alt = gsub(",.*", "", alt)) %>%
             tidyr::separate_longer_delim(cols = c("allele", "ad"), delim = ",") %>%
-            dplyr::select(chr, pos, ref, alt, allele, total_depth, ad) %>%
-            dplyr::mutate(name = dplyr::case_when(allele == ref ~ "ref_depth",
+            select(chr, pos, ref, alt, allele, total_depth, ad) %>%
+            mutate(name = case_when(allele == ref ~ "ref_depth",
                                                   allele == alt ~ "alt_depth",
                                                   TRUE ~ "other_depth")) %>%
-            dplyr::filter(name != "other_depth") %>%
+            filter(name != "other_depth") %>%
             tidyr::pivot_wider(
               names_from = "name", values_from = "ad",
               id_cols = c("chr", "pos", "ref", "alt", "total_depth")) %>%
             readr::type_convert() %>%
-            dplyr::mutate(alt_vaf = alt_depth / total_depth)
+            mutate(alt_vaf = alt_depth / total_depth)
         }) %>%
-        dplyr::bind_rows()
+        bind_rows()
     }
   }) %>%
   purrr::compact() %>%
-  dplyr::bind_rows(.id = "id")
+  bind_rows(.id = "id")
 
 # save vafs
 vafs %>% readr::write_tsv("out/analysis/dnahyb_bj-dna_mut_vafs.tsv")
@@ -105,12 +106,12 @@ Plot a heatmap of the shared variants.
 p_dat <-
   vafs %>%
   # remove muts with VAF < 0.3
-  dplyr::filter(alt_vaf >= 0.3) %>%
-  dplyr::mutate(mut_id = paste(chr, pos, ref, alt, sep = "-"),
-                n_cells = dplyr::n_distinct(id)) %>%
-  dplyr::add_count(mut_id, name = "n_cells_w_mut") %>%
-  dplyr::mutate(prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
-  dplyr::filter(n_cells_w_mut > 1, prop_cells_w_mut < 0.3)
+  filter(alt_vaf >= 0.3) %>%
+  mutate(mut_id = paste(chr, pos, ref, alt, sep = "-"),
+                n_cells = n_distinct(id)) %>%
+  add_count(mut_id, name = "n_cells_w_mut") %>%
+  mutate(prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
+  filter(n_cells_w_mut > 1, prop_cells_w_mut < 0.3)
 
 # reshape data for heatmap
 heatmap_data <-
@@ -118,15 +119,15 @@ heatmap_data <-
   reshape2::dcast(mut_id + n_cells_w_mut ~ id, value.var = "alt_vaf")
 rownames(heatmap_data) <- heatmap_data$mut_id
 heatmap_matrix <- as.matrix(heatmap_data[, -c(1:3)]) # drop annotations
-n_total_muts <- dplyr::n_distinct(p_dat$mut_id)
-n_total_cells <- dplyr::n_distinct(p_dat$id)
+n_total_muts <- n_distinct(p_dat$mut_id)
+n_total_cells <- n_distinct(p_dat$id)
 
 # calculate the number of mutations per column (id)
 annotation_col <-
   p_dat %>%
-  dplyr::count(id, name = "n_muts") %>%
-  dplyr::left_join(metadata %>% dplyr::select(run_id, id)) %>%
-  dplyr::mutate(run_id = as.character(run_id)) %>%
+  count(id, name = "n_muts") %>%
+  left_join(metadata %>% select(run_id, id)) %>%
+  mutate(run_id = as.character(run_id)) %>%
   tibble::column_to_rownames("id")
 
 # replace NAs with 0
