@@ -1,4 +1,4 @@
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M32000 -R 'span[hosts=1] select[mem>32000] rusage[mem=32000]' -J 07_ImmuneLENS_run -o log/%J_07_ImmuneLENS_run.out -e log/%J_07_ImmuneLENS_run.err 'module load ISG/rocker/rver/4.4.0; export R_LIBS_USER=$HOME/R-tmp-4.4; Rscript src/07_ImmuneLENS_run.R'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M32000 -R 'span[hosts=1] select[mem>32000] rusage[mem=32000]' -J 06_ImmuneLENS_run -o log/%J_06_ImmuneLENS_run.out -e log/%J_06_ImmuneLENS_run.err 'module load ISG/rocker/rver/4.4.0; export R_LIBS_USER=$HOME/R-tmp-4.4; Rscript src/06_ImmuneLENS_run.R'
 
 # libraries
 library(magrittr)

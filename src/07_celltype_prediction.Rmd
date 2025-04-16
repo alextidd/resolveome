@@ -14,7 +14,7 @@ output:
 ---
 
 ```{r setup, include = F, message = F, warning = F, echo = F}
-# rmarkdown::render('src/08_celltype_prediction.Rmd', output_file = 'celltype_prediction.html', output_dir = 'out/analysis/')
+# rmarkdown::render('src/07_celltype_prediction.Rmd', output_file = 'celltype_prediction.html', output_dir = 'out/analysis/')
 
 # chunk options
 knitr::opts_knit$set(root.dir = "../")

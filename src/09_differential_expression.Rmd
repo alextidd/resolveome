@@ -14,7 +14,7 @@ output:
 ---
 
 ```{r setup, include = F, message = F, warning = F, echo = F}
-# rmarkdown::render('src/10_differential_expression.Rmd', output_file = 'differential_expression.html', output_dir = 'out/analysis/')
+# rmarkdown::render('src/09_differential_expression.Rmd', output_file = 'differential_expression.html', output_dir = 'out/analysis/')
 
 # chunk options
 knitr::opts_knit$set(root.dir = "../")

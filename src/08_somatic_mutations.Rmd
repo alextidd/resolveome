@@ -14,7 +14,7 @@ output:
 ---
 
 ```{r setup, include = F}
-# rmarkdown::render('src/09_somatic_mutations.Rmd', output_file = 'somatic_mutations.html', output_dir = 'out/analysis/')
+# rmarkdown::render('src/08_somatic_mutations.Rmd', output_file = 'somatic_mutations.html', output_dir = 'out/analysis/')
 
 # chunk options
 knitr::opts_knit$set(root.dir = "../")
