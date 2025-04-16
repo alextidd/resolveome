@@ -169,7 +169,7 @@ rna_pre_pcr_quants <-
 # combine with ids
 plate10_man_insp %>%
   dplyr::transmute(run_id = as.character(run_id), plex = paste0("plex", plex),
-                   n_cells, `1p_loh`, TNFRSF14_mut) %>%
+                   n_cells, loh_1p, TNFRSF14_mut) %>%
   dplyr::inner_join(
     ss %>%
       dplyr::filter(seq_type == "dnahyb") %>%
@@ -179,7 +179,7 @@ plate10_man_insp %>%
   dplyr::transmute(
     id, run_id, n_cells, plex, cell_id, seq_type, DNA_PrePCR_conc, RNA_PrePCR_conc, suspected_doublet = "",
     doublet_rationale = "", celltype_SHM = "", celltype_VDJ_recomb = "", class_switch_recombination_CSR = "", chr_dropout = "",
-    `1p_loh`, TNFRSF14_mut, TNFRSF14_mut_VAF = "", TNFRSF14_mut_in_NanoSeq_data = "", productive_heavy_chain = "",
+    loh_1p, TNFRSF14_mut, TNFRSF14_mut_VAF = "", TNFRSF14_mut_in_NanoSeq_data = "", productive_heavy_chain = "",
     heavy_chain_CDR3_nt_IgBLAST = "", heavy_chain_CDR3_aa_IgBLAST = "", unproductive_heavy_chain = "", heavy_chain_isotype = "",
     productive_light_chain = "", identity_of_BCR_light_chain = "", productive_TRB_chain = "", productive_TRA_chain = "",
     TRG_rearrangement = "", notes = "") %>%

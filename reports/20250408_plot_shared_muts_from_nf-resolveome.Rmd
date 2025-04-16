@@ -47,8 +47,8 @@ man_insp <-
   # filter out bad cells
   filter((!chr_dropout | is.na(chr_dropout)) & (!suspected_doublet | is.na(suspected_doublet))) %>%
   select(-c(run_id, id, seq_type)) %>%
-  # fix 1p_loh
-  mutate(loh_1p = as.character(as.numeric(`1p_loh`)))
+  # fix loh_1p
+  mutate(loh_1p = as.character(as.numeric(loh_1p)))
 ss <-
   readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
   left_join(man_insp) %>%

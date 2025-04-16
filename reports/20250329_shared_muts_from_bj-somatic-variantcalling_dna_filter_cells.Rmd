@@ -167,8 +167,8 @@ metadata <-
       celltype_VDJ_recomb == "B cell" & celltype_SHM == "not mature B cell" ~
         "non-mature B cell",
       TRUE ~ "uncertain"),
-    # define 1p_loh
-    loh_1p = dplyr::case_when(`1p_loh` ~ "1p LOH", !`1p_loh` ~ "no 1p LOH",
+    # define loh_1p
+    loh_1p = dplyr::case_when(loh_1p ~ "1p LOH", !loh_1p ~ "no 1p LOH",
                               TRUE ~ "unknown"))
 ss <-
   readr::read_csv(file.path(bj_dir, "samplesheet.csv"))

@@ -48,8 +48,8 @@ plot_vaf_heatmap <- function(p_dat, p_source) {
   # calculate the number of mutations per column (id)
   annotation_col <-
     p_dat2 %>%
-    dplyr::count(cell_id, `1p_loh`, celltype_SHM, celltype_VDJ_recomb) %>%
-    dplyr::mutate(`1p_loh` = as.character(`1p_loh`)) %>%
+    dplyr::count(cell_id, loh_1p, celltype_SHM, celltype_VDJ_recomb) %>%
+    dplyr::mutate(loh_1p = as.character(loh_1p)) %>%
     tibble::column_to_rownames("cell_id")
 
   # replace NAs with 0
@@ -89,7 +89,7 @@ data_dir <- "out/nf-resolveome/dna/"
 man_insp <-
   readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
   dplyr::filter(plate == 3, !chr_dropout, !suspected_doublet) %>%
-  dplyr::distinct(cell_id, `1p_loh`, celltype_SHM, celltype_VDJ_recomb,
+  dplyr::distinct(cell_id, loh_1p, celltype_SHM, celltype_VDJ_recomb,
                   TNFRSF14_mut)
 ss <-
   readr::read_csv(file.path(data_dir, "samplesheet.csv")) %>%
@@ -210,7 +210,7 @@ p1 / p2
 # plot vaf distribution
 comb_geno_filter %>%
   dplyr::left_join(man_insp) %>%
-  dplyr::mutate(`1p LOH` = ifelse(chr == "1" & `1p_loh`, "1", "0")) %>%
+  dplyr::mutate(`1p LOH` = ifelse(chr == "1" & loh_1p, "1", "0")) %>%
   ggplot(aes(x = mut_vaf, fill = `1p LOH`)) +
   geom_histogram() +
   theme_classic() +
@@ -240,8 +240,8 @@ n_total_cells <- dplyr::n_distinct(p_dat2$cell_id)
 # calculate the number of mutations per column (id)
 annotation_col <-
   p_dat2 %>%
-  dplyr::count(cell_id, `1p_loh`) %>%
-  dplyr::mutate(`1p_loh` = as.character(`1p_loh`)) %>%
+  dplyr::count(cell_id, loh_1p) %>%
+  dplyr::mutate(loh_1p = as.character(loh_1p)) %>%
   tibble::column_to_rownames("cell_id")
 
 # replace NAs with 0
@@ -292,7 +292,7 @@ man_insp %>%
   dplyr::filter(gene == "TNFRSF14", aachange != ".") %>%
   dplyr::mutate(mut_frac = paste(mut_depth, total_depth, sep = "/")) %>%
   tidyr::pivot_wider(
-    id_cols = c(cell_id, chr, pos, ref, alt, aachange, mut_vaf, `1p_loh`, TNFRSF14_status, TNFRSF14_mut),
+    id_cols = c(cell_id, chr, pos, ref, alt, aachange, mut_vaf, loh_1p, TNFRSF14_status, TNFRSF14_mut),
     names_from = seq_type, values_from = mut_frac) %>%
   dplyr::mutate(TNFRSF14_mut_auto = paste0(aachange, " (WGS ", dna, ", TGS ", dnahyb, ")"))
 ```

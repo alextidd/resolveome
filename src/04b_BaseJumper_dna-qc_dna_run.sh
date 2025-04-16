@@ -27,4 +27,4 @@ export LSB_EXCLUSIVE=Y
     -resume 
 )
 
-# bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J 04b_BaseJumper_dna-qc_dna_symlink -o "log/%J_04b_BaseJumper_dna-qc_dna_symlink.out" "replace_symlinks out/BaseJumper/bj-dna-qc/dna/PD63118_run/"
+# bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J 04b_BaseJumper_dna-qc_dna_symlink -o "log/%J_04b_BaseJumper_dna-qc_dna_symlink.out" ". ~/.bashrc ; replace_symlinks out/BaseJumper/bj-dna-qc/dna/PD63118_run/"

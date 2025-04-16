@@ -31,6 +31,8 @@ library(dplyr)
 library(tibble)
 library(ggrepel)
 library(pheatmap)
+library(clusterProfiler)
+library(org.Hs.eg.db)
 ```
 
 Here, I will run a differential gene expression analysis between the WT cells
@@ -42,7 +44,7 @@ First, we load the samplesheet with all metadata for the cells.
 # load samplesheet
 ss <-
   readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
-  dplyr::mutate(run_id = as.character(run_id))
+  mutate(run_id = as.character(run_id))
 
 # load manual inspection data
 man_insp <-
@@ -50,17 +52,16 @@ man_insp <-
   # clean cells
   filter(!chr_dropout | is.na(chr_dropout),
          !suspected_doublet | is.na(suspected_doublet)) %>%
-  mutate(loh_1p = as.character(as.numeric(`1p_loh`))) %>%
-  select(cell_id, starts_with("celltype_"), TNFRSF14_mut, loh_1p) %>%
-  distinct() 
+  mutate(loh_1p = as.character(as.numeric(loh_1p))) %>%
+  select(cell_id, plate, starts_with("celltype_"), TNFRSF14_mut, loh_1p) %>%
+  distinct()
 ```
-
 
 ## Read and gene counts from RNA
 
 ```{r read_and_gene_counts}
 # dirs
-bje_dir <- "out/BaseJumper/bj-expression/filter_cells/PD63118_250329_235910/"
+bje_dir <- "out/BaseJumper/bj-expression/rna/PD63118_run/"
 
 # load read counts
 read_counts <-
@@ -92,70 +93,44 @@ counts %>%
   guides(x = guide_axis(angle = -90)) +
   scale_y_continuous(expand = c(0, 0)) +
   labs(x = "") +
-  facet_wrap(~ name, scales = "free_y", ncol = 1) +
+  facet_grid(name ~ plate, scales = "free", space = "free_x") +
   theme_bw()
-
-# compare the metrics between runs
-counts %>%
-  ggplot(aes(x = run_id, y = n, fill = run_id)) +
-  geom_boxplot(outlier.colour = NA) +
-  geom_jitter(height = 0) +
-  facet_wrap(~ name, scales = "free_y", ncol = 2) +
-  theme(legend.position = "none") +
-  theme_bw()
-
-# compare the same cells between the two runs
-counts %>%
-  left_join(
-    counts %>%
-    filter(name == "n reads") %>%
-    group_by(cell_id) %>%
-    summarise(reads = max(n))) %>%
-  filter(plate == 3) %>%
-  ggplot(aes(x = reorder(cell_id, -reads), y = n, fill = run_id)) +
-  geom_col(position = "dodge") +
-  guides(x = guide_axis(angle = -90)) +
-  scale_y_continuous(expand = c(0, 0)) +
-  labs(x = "") +
-  theme_bw() +
-  facet_grid(name ~ ., scales = "free_y")
 ```
 
 Plot n counts and n features per cell.
 
 ```{r}
-counts_file <- "out/BaseJumper/bj-expression/filter_cells/PD63118_250329_235910/secondary_analyses/quantification_htseq/matrix_gene_counts_starhtseq.txt"
-
 # load expression matrix
-expr  <-
-  counts_file %>%
+expr <-
+  file.path(bje_dir, "secondary_analyses/quantification_htseq/matrix_gene_counts_starhtseq.txt") %>%
   readr::read_tsv() %>%
-  tidyr::separate_wider_delim(cols = "gene_id_gene_symbol", delim = "_", names = c("gene_id", "gene_symbol")) %>%
-  dplyr::rename_with(~ stringr::str_replace(., "_rna_.*", ""))
+  tidyr::separate_wider_delim(cols = "gene_id_gene_symbol", delim = "_",
+                              names = c("gene_id", "gene_symbol")) %>%
+  rename_with(~ stringr::str_replace(., "_rna_.*", ""))
 
 # Compute nCounts and nFeatures for each cell (excluding gene_id and gene_symbol)
 cell_stats <-
   expr %>%
-  dplyr::select(-gene_id, -gene_symbol) %>%
-  dplyr::summarise(
+  select(-gene_id, -gene_symbol) %>%
+  summarise(
     `total counts` = colSums(.),          # Total counts per cell
     `total genes` = colSums(. > 0)     # Number of expressed genes per cell
   ) %>%
   tidyr::pivot_longer(cols = everything(), names_to = "metric", values_to = "value") %>%
-  dplyr::mutate(cell_id = rep(colnames(expr)[-c(1, 2)], 2)) # Add cell labels
+  mutate(cell_id = rep(colnames(expr)[-c(1, 2)], 2)) # Add cell labels
 
 # Plot
 cell_stats %>%
-  dplyr::inner_join(man_insp) %>%
-  dplyr::group_by(cell_id) %>%
-  dplyr::mutate(arr = max(value)) %>%
-  dplyr::ungroup() %>%
+  inner_join(man_insp) %>%
+  group_by(cell_id, plate) %>%
+  mutate(arr = max(value)) %>%
+  ungroup() %>%
   ggplot(aes(x = reorder(cell_id, -arr), y = value, fill = value)) +
   geom_bar(stat = "identity", position = "dodge") +
   theme_minimal() +
   guides(x = guide_axis(angle = -90)) +
   labs(x = "cell", y = "") +
-  facet_grid(metric ~ ., scales = "free_y") +
+  facet_grid(metric ~ plate, scales = "free", space = "free_x") +
   scale_y_continuous(expand = c(0, 0)) +
   theme(panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank(),
@@ -163,38 +138,52 @@ cell_stats %>%
   viridis::scale_fill_viridis()
 ```
 
+## DGEA
+
 Next, we load the cell-gene count expression matrices.
 
 ```{r expr_mat}
+# list of compound heterozygotes
+comp_hets <-
+  c("plate10_wellA11",
+    "plate10_wellC6",
+    "plate3_wellB4",
+    "plate10_wellE10",
+    "plate3_wellF11",
+    "plate10_wellF6",
+    "plate10_wellC9",
+    "plate10_wellF7")
+
 # get cells and their tnfrsf14 status
 cells <-
   man_insp %>%
-  dplyr::filter(celltype_VDJ_recomb == "B cell") %>%
-  dplyr::rowwise() %>%
-  dplyr::transmute(sample_id = cell_id, TNFRSF14_mut,
-                   condition = factor(as.numeric(!is.na(TNFRSF14_mut)), levels = c("0", "1")))
+  mutate(sample_id = cell_id,
+         condition = factor(as.numeric(!is.na(TNFRSF14_mut)),
+                            levels = c("0", "1")),
+         comp_het = as.numeric(cell_id %in% comp_hets)) %>%
+  filter(celltype_VDJ_recomb == "B cell" & celltype_SHM == "mature B cell")
 
 expr_cells <-
   expr %>%
-  dplyr::select(gene_id, gene_symbol, dplyr::any_of(cells$sample_id))
+  select(gene_id, gene_symbol, any_of(cells$sample_id))
 
 # Ensure sample IDs in `cells` are in the same order as columns in `expr`
 expr_counts <-
   expr_cells %>%
   column_to_rownames(var = "gene_id") %>%  # Use gene names as rownames
-  dplyr::select(-gene_symbol)  # Remove gene_id if not needed
+  select(-gene_symbol)  # Remove gene_id if not needed
 
 # Ensure order of sample IDs matches
 cells <-
   cells %>%
-  dplyr::arrange(match(sample_id, colnames(expr_counts)))
+  filter(sample_id %in% colnames(expr_counts)) %>%
+  arrange(match(sample_id, colnames(expr_counts)))
 
 # Convert to a DESeq2-compatible format
 dds <- DESeqDataSetFromMatrix(
   countData = as.matrix(expr_counts),
   colData = cells,
-  design = ~ condition
-)
+  design = ~ condition)
 
 # Set reference level for condition (WT as reference)
 dds$condition <- relevel(dds$condition, ref = "0")
@@ -214,7 +203,7 @@ res <- res[order(res$padj), ]
 # Convert to a tibble for easier viewing
 res_tbl <-
   as_tibble(res, rownames = "gene") %>%
-  left_join(expr %>% dplyr::select(gene = gene_id, gene_symbol)) %>%
+  left_join(expr %>% select(gene = gene_id, gene_symbol)) %>%
   mutate(direction = ifelse(log2FoldChange > 0, "upregulated", "downregulated"))
 
 # View significant genes (FDR < 0.05)
@@ -233,7 +222,8 @@ labs <-
 res_tbl %>%
   ggplot(aes(x = log2FoldChange, y = -log10(padj))) +
   geom_point(aes(color = padj < 0.05), alpha = 0.6) +
-  ggrepel::geom_text_repel(data = labs, aes(label = gene_symbol), size = 3, vjust = -0.5) +
+  ggrepel::geom_text_repel(data = labs, aes(label = gene_symbol), size = 3,
+                           vjust = -0.5) +
   scale_color_manual(values = c("black", "red")) +
   theme_minimal() +
   labs(title = "DGEA, TNFRSF14 mutant vs WT mature B cells",
@@ -251,14 +241,17 @@ top_genes <-
   {split(., .$direction)}
 
 # function: plot heatmap
-plot_heatmap <- function(top_genes_i, counts_i, p_title = "Top 50 DGEs") {
+plot_heatmap <- function(top_genes_i, counts_i, p_title = "Top 50 DGEs",
+                         annotations = c()) {
   # Extract their expression data
-  expr_top <- expr_counts[top_genes_i$gene, arrange(cells, condition)$sample_id]
+  expr_top <- expr_counts[top_genes_i$gene, arrange(cells, condition, comp_het)$sample_id]
   rownames(expr_top) <- top_genes_i$gene_symbol
 
   # Create a column annotation for TNFRSF14 status
-  annotation_col <- data.frame(condition = factor(cells$condition))
-  rownames(annotation_col) <- cells$sample_id
+  annotation_col <-
+    cells %>%
+    transmute(condition = factor(condition), celltype_SHM, sample_id, loh_1p, comp_het) %>%
+    tibble::column_to_rownames(var = "sample_id")
 
   # Define color scheme
   ann_colors <- list(condition = c("0" = "blue", "1" = "red"))
@@ -277,9 +270,11 @@ plot_heatmap(top_genes$upregulated, expr_counts, p_title = "Top 50 upregulated D
 plot_heatmap(top_genes$downregulated, expr_counts, p_title = "Top 50 downregulated DGEs")
 ```
 
+### NFKB pathway genes
+
 ```{r}
 # expression of genes in the nfkb pathway
-# List of NF-κB pathway genes
+# List of NF-κB pathway genes from chatGPT
 nfkb_genes <- c(
   "RELA", "RELB", "NFKB1", "NFKB2", "REL",
   "NFKBIA", "NFKBIB", "NFKBIE", "BCL3",
@@ -291,13 +286,14 @@ nfkb_genes <- c(
 )
 
 # # nfkb genes from Biocarta Pathways dataset
-# nfkb_genes <- 
+# nfkb_genes <-
 #   c("CHUK", "FADD", "IKBKB", "IKBKG", "IL1A", "IL1R1", "IRAK1", "MAP3K1",
 #     "MAP3K7", "MAP4K4", "MYD88", "NFKB1", "NFKBIA", "RELA", "RIPK1", "TAB1",
 #     "TLR4", "TNF", "TNFRSF1A", "TRADD")
 
 # Select NF-κB genes from DESeq2 results
-nfkb_res <- res_tbl %>%
+nfkb_res <-
+  res_tbl %>%
   filter(gene_symbol %in% nfkb_genes) %>%
   arrange(padj)
 
@@ -306,7 +302,8 @@ print(nfkb_res)
 ```
 
 ```{r nfkb_volcano, fig.height = 10, fig.width = 10}
-ggplot(res_tbl, aes(x = log2FoldChange, y = -log10(padj))) +
+res_tbl %>%
+  ggplot(aes(x = log2FoldChange, y = -log10(padj))) +
   geom_point(aes(color = padj < 0.05), alpha = 0.6) +
   scale_color_manual(values = c("black", "red")) +
   geom_label_repel(data = nfkb_res, aes(label = gene_symbol)) + 
@@ -331,6 +328,99 @@ pheatmap(log2(expr_nfkb + 1),
          annotation_col = annotation_col,
          main = "NF-κB Pathway Gene Expression")
 ```
+
+## Pathway enrichment analysis
+
+Run pathway enrichment analysis on the cells.
+
+```{r path_enrich}
+# function: run GO and KEGG pathway enrichment on a list of genes
+run_pathway_enrichment <- function(genes) {
+  # map Ensembl to Entrez IDs for enrichment
+  sig_entrez <-
+    genes %>%
+    tools::file_path_sans_ext() %>%
+    bitr(fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db) %>%
+    left_join(
+      significant_genes %>% transmute(ENSEMBL = tools::file_path_sans_ext(gene),
+                                      gene_symbol = gene_symbol))
+
+  # run GO enrichment
+  ego <- enrichGO(gene = sig_entrez$ENTREZID,
+                  OrgDb = org.Hs.eg.db,
+                  keyType = "ENTREZID",
+                  ont = "BP",
+                  pAdjustMethod = "BH",
+                  pvalueCutoff = 0.05,
+                  qvalueCutoff = 0.1)
+
+  # run KEGG enrichment
+  ekegg <- enrichKEGG(gene = sig_entrez$ENTREZID,
+                      organism = "hsa",
+                      pvalueCutoff = 0.05)
+
+  # return
+  list(ego = ego, ekegg = ekegg)
+}
+
+# run for upreg and downreg
+pe_upreg <-
+  significant_genes %>%
+  filter(log2FoldChange > 1) %>%
+  pull(gene) %>%
+  run_pathway_enrichment()
+pe_downreg <-
+  significant_genes %>%
+  filter(log2FoldChange < -1) %>%
+  pull(gene) %>%
+  run_pathway_enrichment()
+
+# visualize top results
+barplot(ego, showCategory = 10, title = "GO Biological Process Enrichment")
+barplot(ekegg, showCategory = 10, title = "KEGG Pathway Enrichment")
+```
+
+```{r go_genes}
+# upreg genes involved from GO output
+pe_upreg$ego@result %>%
+  dplyr::rename(ENTREZID = geneID) %>%
+  filter(p.adjust < 0.05) %>%
+  tidyr::separate_longer_delim(ENTREZID, delim = "/") %>%
+  left_join(sig_entrez) %>%
+  group_by(Description, GeneRatio, FoldEnrichment, p.adjust) %>%
+  summarise(genes = paste(gene_symbol, collapse = ", "))
+
+# downreg genes involved from GO output
+pe_downreg$ego@result %>%
+  dplyr::rename(ENTREZID = geneID) %>%
+  filter(p.adjust < 0.05) %>%
+  tidyr::separate_longer_delim(ENTREZID, delim = "/") %>%
+  left_join(sig_entrez) %>%
+  group_by(Description, GeneRatio, FoldEnrichment, p.adjust) %>%
+  summarise(genes = paste(gene_symbol, collapse = ", "))
+```
+
+```{r kegg_genes}
+# upreg genes involved from KEGG output
+pe_upreg$ekegg@result %>%
+  dplyr::rename(ENTREZID = geneID) %>%
+  filter(p.adjust < 0.05) %>%
+  tidyr::separate_longer_delim(ENTREZID, delim = "/") %>%
+  left_join(sig_entrez) %>%
+  group_by(Description, GeneRatio, FoldEnrichment, p.adjust) %>%
+  summarise(genes = paste(gene_symbol, collapse = ", "))
+
+# downreg genes involved from KEGG output
+pe_downreg$ekegg@result %>%
+  dplyr::rename(ENTREZID = geneID) %>%
+  filter(p.adjust < 0.05) %>%
+  tidyr::separate_longer_delim(ENTREZID, delim = "/") %>%
+  left_join(sig_entrez) %>%
+  group_by(Description, GeneRatio, FoldEnrichment, p.adjust) %>%
+  summarise(genes = paste(gene_symbol, collapse = ", "))
+```
+
+## PCA
 
 Run PCA.
 
@@ -369,10 +459,4 @@ pca_df %>%
   ggtitle("PCA of Top 500 Genes") +
   xlab("Principal Component 1") +
   ylab("Principal Component 2")
-```
-
-Run DGEA with normalisation.
-
-```{r dgea_norm, fig.height = 10, fig.width = 10}
-
 ```

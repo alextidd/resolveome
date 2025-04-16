@@ -39,9 +39,9 @@ out_dir <- paste0(wd, "/out/nf-resolveome/dna/PD63118/")
 # list all matching png files
 png_files <-
   man_insp %>%
-  dplyr::arrange(`1p_loh`) %>%
+  dplyr::arrange(loh_1p) %>%
   dplyr::mutate(
-    label = paste(ifelse(`1p_loh`, "1p LOH -", "1p diploid -"), id),
+    label = paste(ifelse(loh_1p, "1p LOH -", "1p diploid -"), id),
     png = paste0(out_dir, id, "/genotyping/", id, "_caveman_snps_baf_plot.png")) %>%
   {split(.$png, .$label)} %>%
   unlist()
@@ -49,9 +49,9 @@ png_files <-
 # list files for chr1
 png_files_chr1 <-
   man_insp %>%
-  dplyr::arrange(`1p_loh`) %>%
+  dplyr::arrange(loh_1p) %>%
   dplyr::mutate(
-    label = paste(ifelse(`1p_loh`, "1p LOH -", "1p diploid -"), id),
+    label = paste(ifelse(loh_1p, "1p LOH -", "1p diploid -"), id),
     png = paste0(out_dir, id, "/genotyping/", id, "_caveman_snps_baf_chr1_plot.png")) %>%
   {split(.$png, .$label)} %>%
   unlist()

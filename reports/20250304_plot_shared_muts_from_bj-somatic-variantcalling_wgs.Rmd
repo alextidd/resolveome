@@ -168,8 +168,8 @@ metadata <-
       TRUE ~ "uncertain"),
     # define quality (good vs bad cells)
     qual = ifelse(!chr_dropout & !suspected_doublet, "good", "bad"),
-    # define 1p_loh
-    loh_1p = dplyr::case_when(`1p_loh` ~ "1p LOH", !`1p_loh` ~ "no 1p LOH",
+    # define loh_1p
+    loh_1p = dplyr::case_when(loh_1p ~ "1p LOH", !loh_1p ~ "no 1p LOH",
                               TRUE ~ "unknown"))
 ss <-
   readr::read_csv("out/BaseJumper/bj-somatic-variantcalling/wgs/samplesheet.csv")

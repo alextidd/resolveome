@@ -59,8 +59,8 @@ We load the samplesheet.
 man_insp <-
   read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
   select(-c(id, run_id, seq_type)) %>%
-  # fix 1p_loh
-  mutate(loh_1p = as.character(as.numeric(`1p_loh`))) %>%
+  # fix loh_1p
+  mutate(loh_1p = as.character(as.numeric(loh_1p))) %>%
   # synthesis celltype annotations
   mutate(
     celltype_VDJ_SHM = case_when(
@@ -213,14 +213,14 @@ We plot the VAF distribution of the mutations.
 genos %>%
   left_join(ss) %>%
   filter(mut_vaf > 0) %>%
-  ggplot(aes(x = mut_vaf, fill = on_1p & `1p_loh`)) +
+  ggplot(aes(x = mut_vaf, fill = on_1p & loh_1p)) +
   geom_histogram() +
   theme_classic() +
   scale_y_continuous(expand = c(0, 0)) +
   scale_fill_brewer(palette = "Set1")
 genos_filter %>%
   left_join(ss) %>%
-  ggplot(aes(x = mut_vaf, fill = on_1p & `1p_loh`)) +
+  ggplot(aes(x = mut_vaf, fill = on_1p & loh_1p)) +
   geom_histogram() +
   lims(x = c(0, NA)) +
   theme_classic() +
