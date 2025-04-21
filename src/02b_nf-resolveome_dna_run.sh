@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J 03b_nf-resolveome_dna_run -o log/%J_03b_nf-resolveome_dna_run.out -e log/%J_03b_nf-resolveome_dna_run.err 'bash src/03b_nf-resolveome_dna_run.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J 02b_nf-resolveome_dna_run -o log/%J_02b_nf-resolveome_dna_run.out -e log/%J_02b_nf-resolveome_dna_run.err 'bash src/02b_nf-resolveome_dna_run.sh'
 
 # dirs
 wd=$(pwd)

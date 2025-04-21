@@ -26,88 +26,160 @@ knitr::opts_chunk$set(warning = FALSE,
 library(magrittr)
 library(ggplot2)
 library(dplyr)
+library(tidyr)
+library(stringr)
+source("bin/utils.R")
 ```
 
 We load the samplesheet.
 
 ```{r load_data}
-ss <- readr::read_csv("out/BaseJumper/bj-somatic-variantcalling/dna/samplesheet.csv")
-metadata <- readr::read_csv("data/resolveome/samplesheet_local.csv")
+ids <-
+  c("dna", "dnahyb") %>%
+  purrr::set_names() %>%
+  purrr::map(function(seq_type) {
+    paste0("out/BaseJumper/bj-somatic-variantcalling/", seq_type,
+           "/samplesheet.csv") %>%
+      readr::read_csv() %>%
+      pull(biosampleName)
+  })
+ss <-
+  readr::read_csv("data/resolveome/samplesheet_local.csv")
+man_insp <-
+  readr::read_tsv("data/manual_inspection/2024-12-20_PD63118_PTA_BAF_LoH_CellType_Mut_Summary.tsv") %>%
+  select(-run_id)
 ```
 
 We load the annotated variants.
 
 ```{r load_vars}
-# get the latest run
-out_dir <-
-  list.files("out/BaseJumper/bj-somatic-variantcalling/dna/",
-             pattern = "PD63118_", include.dirs = TRUE, full.names = TRUE) %>%
-  sort() %>%
-  tail(1)
+# set the outdir
+out_dir <- "out/BaseJumper/bj-somatic-variantcalling/dnahyb/PD63118_run/"
 
 # increase buffer size
 Sys.setenv("VROOM_CONNECTION_SIZE" = 5000000)
 
-vafs <-
-  ss$biosampleName %>%
-  purrr::set_names() %>%
-  purrr::map(function(id) {
-    print(id)
-    vcf_file <-
-      paste0(out_dir, "/secondary_analyses/variant_calls_dnascope/",
-             id, "_dnascope.vcf.gz")
-    if (file.exists(vcf_file)) {
-      vcf <-
-        readr::read_tsv(gzfile(vcf_file), comment = "##") %>%
-        {split(., .$FORMAT)} %>%
-        purrr::map(function(vcf_i) {
-          format_i <- stringr::str_split_1(unique(vcf_i$FORMAT), ":")
-          vcf_i %>%
-            mutate(gt = get(id)) %>%
-            tidyr::separate_wider_delim("gt", delim = ":", names = format_i) %>%
-            janitor::clean_names() %>%
-            mutate(chr = number_chrom, total_depth = dp,
-                          allele = paste(ref, alt, sep = ","),
-                          alt = gsub(",.*", "", alt)) %>%
-            tidyr::separate_longer_delim(cols = c("allele", "ad"), delim = ",") %>%
-            select(chr, pos, ref, alt, allele, total_depth, ad) %>%
-            mutate(name = case_when(allele == ref ~ "ref_depth",
-                                                  allele == alt ~ "alt_depth",
-                                                  TRUE ~ "other_depth")) %>%
-            filter(name != "other_depth") %>%
-            tidyr::pivot_wider(
-              names_from = "name", values_from = "ad",
-              id_cols = c("chr", "pos", "ref", "alt", "total_depth")) %>%
-            readr::type_convert() %>%
-            mutate(alt_vaf = alt_depth / total_depth)
-        }) %>%
-        bind_rows()
-    }
-  }) %>%
-  purrr::compact() %>%
-  bind_rows(.id = "id")
+# get variants
+"out/BaseJumper/bj-somatic-variantcalling/dnahyb/PD63118_run/"
 
-# save vafs
-vafs %>% readr::write_tsv("out/analysis/dnahyb_bj-dna_mut_vafs.tsv")
+# get nr and nv
+mutations <-
+  c("dna", "dnahyb") %>%
+  purrr::set_names() %>%
+  purrr::map(function(seq_type) {
+    c("mut_depth" = "NV", "total_depth" = "NR") %>%
+      purrr::map(function(i) {
+        paste0("out/BaseJumper/bj-somatic-variantcalling/", seq_type,
+               "/PD63118_run/SOMATIC_VARIANT_WORKFLOW_Heuristic_Filter_SEQUOIA", 
+               "/Sequoia_group_PD63118_bino-10_rhosnp0.4_rhoindel0.4_mincov10_maxcov500_both_",
+               i, "_filtered_all.txt") %>%
+          read.table() %>%
+          tibble::rownames_to_column(var = "mut_id")
+      }) %>%
+      bind_rows(.id = "name") %>%
+      pivot_longer(cols = -c("name", "mut_id"), names_to = "id") %>%
+      pivot_wider() %>%
+      separate_wider_delim(cols = "mut_id", delim = "_", cols_remove = FALSE,
+                           names = c("chr", "pos", "ref", "mut")) %>%
+      mutate(pos = as.numeric(pos)) %>%
+      filter(mut_depth > 0)
+  }) %>%
+  bind_rows(.id = "seq_type") %>%
+  left_join(ss %>% select(id, cell_id)) %>%
+  group_by(cell_id) %>%
+  mutate(seq_type = paste(unique(seq_type), collapse = "+")) %>%
+  group_by(chr, pos, ref, mut, mut_id, cell_id, seq_type) %>%
+  summarise(mut_depth = sum(mut_depth), total_depth = sum(total_depth)) %>%
+  ungroup() %>%
+  mutate(mut_vaf = mut_depth / total_depth)
+
+# annotate mutations with dndscv
+dndscv_in <-
+  mutations %>%
+  transmute(sampleID = "", chr = gsub("chr", "", chr), pos, ref, mut) %>%
+  distinct()
+dndscv_out <-
+  dndscv::dndscv(dndscv_in, max_muts_per_gene_per_sample = Inf,
+                 max_coding_muts_per_sample = Inf, outp = 1,
+                 refdb = "../reference/dndscv/RefCDS_human_GRCh38_GencodeV18_recommended.rda")
+
+# add mutation annotations
+mutations <-
+  mutations %>%
+  left_join(
+    dndscv_out$annotmuts %>%
+      mutate(chr = paste0("chr", chr)) %>%
+      select(-sampleID)) %>%
+  left_join(man_insp) %>%
+  mutate(alt = mut)
 ```
 
 Plot the VAF distribution.
 
 ```{r plot_vaf}
-vafs %>%
-  ggplot(aes(x = alt_vaf)) +
-  geom_histogram()
+plot_vaf_dist <- function(p_dat, p_title = "VAF distribution") {
+  p_dat_binned <-
+    p_dat %>%
+    mutate(
+      total_depth_bin = cut(total_depth, breaks = c(0, 10, 20, 50, 100, Inf), labels = c("<10", "10–20", "20–50", "50–100", ">100")),
+      mut_vaf_bin = cut(mut_vaf, breaks = seq(0, 1, length.out = 30 + 1),
+                        include.lowest = TRUE),
+      mut_vaf_min = str_extract(mut_vaf_bin, "[\\d\\.]+") %>% as.numeric(),
+      mut_vaf_high = str_extract(mut_vaf_bin, "(?<=,)\\s*[\\d\\.]+") %>% as.numeric(),
+      mut_vaf_mid = (mut_vaf_min + mut_vaf_high) / 2) %>%
+    count(mut_vaf_bin, mut_vaf_mid, total_depth_bin)
+  p <-
+    p_dat_binned %>%
+    ggplot(aes(x = mut_vaf_mid, y = n, fill = total_depth_bin)) +
+    geom_col() +
+    scale_fill_viridis_d() +
+    theme_classic() +
+    labs(title = p_title, subtitle = paste(n_distinct(p_dat$mut_id), "mutations")) +
+    lims(x = c(0, 1)) +
+    scale_y_continuous(expand = c(0, 0))
+  print(p)
+}
+
+mutations %>%
+  plot_vaf_dist()
+
+pdf("test.pdf", height = 5)
+purrr::walk(sort(unique(mutations$cell_id)), function(cell_id_i) {
+  print(cell_id_i)
+  p_dat <-
+    mutations %>%
+    filter(cell_id == cell_id_i)
+  p <-
+    p_dat %>%
+    plot_vaf_dist(paste(cell_id_i, "-", unique(p_dat$seq_type)))
+  print(p)
+})
+dev.off()
 ```
 
-Plot a heatmap of the shared variants.
+Plot a heatmap of the variants.
 
 ```{r plot_heatmap}
+# all muts
+mutations %>%
+  filter(mut_vaf > 0.1) %>%
+  plot_vaf_heatmap()
+
+# filtered muts
+mutations %>%
+  filter(mut_vaf > 0) %>%
+  add_count(mut_id, name = "n_cells_w_mut") %>%
+  mutate(n_cells = n_distinct(id),
+         prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
+  filter(prop_cells_w_mut < 0.3) %>%
+  plot_vaf_heatmap("VAF heatmap - % cells w mut < 30%")
+
 # look at shared muts
 p_dat <-
-  vafs %>%
+  mutations %>%
   # remove muts with VAF < 0.3
-  filter(alt_vaf >= 0.3) %>%
-  mutate(mut_id = paste(chr, pos, ref, alt, sep = "-"),
+  filter(mut_vaf >= 0.3) %>%
+  mutate(mut_id = paste(chr, pos, ref, mut, sep = "-"),
                 n_cells = n_distinct(id)) %>%
   add_count(mut_id, name = "n_cells_w_mut") %>%
   mutate(prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
@@ -116,7 +188,7 @@ p_dat <-
 # reshape data for heatmap
 heatmap_data <-
   p_dat %>%
-  reshape2::dcast(mut_id + n_cells_w_mut ~ id, value.var = "alt_vaf")
+  reshape2::dcast(mut_id + n_cells_w_mut ~ id, value.var = "mut_vaf")
 rownames(heatmap_data) <- heatmap_data$mut_id
 heatmap_matrix <- as.matrix(heatmap_data[, -c(1:3)]) # drop annotations
 n_total_muts <- n_distinct(p_dat$mut_id)

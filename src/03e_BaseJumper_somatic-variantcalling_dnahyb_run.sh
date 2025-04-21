@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J 04e_BaseJumper_somatic-variantcalling_dnahyb_run -o log/%J_04e_BaseJumper_somatic-variantcalling_dnahyb_run.out -e log/%J_04e_BaseJumper_somatic-variantcalling_dnahyb_run.err 'bash src/04e_BaseJumper_somatic-variantcalling_dnahyb_run.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J 03e_BaseJumper_somatic-variantcalling_dnahyb_run -o log/%J_03e_BaseJumper_somatic-variantcalling_dnahyb_run.out -e log/%J_03e_BaseJumper_somatic-variantcalling_dnahyb_run.err 'bash src/03e_BaseJumper_somatic-variantcalling_dnahyb_run.sh'
 
 # dirs
 wd=$(pwd)
@@ -34,4 +34,4 @@ export LSB_EXCLUSIVE=Y
     -N at31@sanger.ac.uk
 )
 
-# bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J 04e_BaseJumper_somatic-variantcalling_dnahyb_symlink -o "log/%J_04e_BaseJumper_somatic-variantcalling_dnahyb_symlink.out" "replace_symlinks out/BaseJumper/bj-somatic-variantcalling/dnahyb/PD63118_run/"
+# bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J 03e_BaseJumper_somatic-variantcalling_dnahyb_symlink -o "log/%J_03e_BaseJumper_somatic-variantcalling_dnahyb_symlink.out" "replace_symlinks out/BaseJumper/bj-somatic-variantcalling/dnahyb/PD63118_run/"

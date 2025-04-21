@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J 04b_BaseJumper_dna-qc_dna_run -o log/%J_04b_BaseJumper_dna-qc_dna_run.out -e log/%J_04b_BaseJumper_dna-qc_dna_run.err 'bash src/04b_BaseJumper_dna-qc_dna_run.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J 03b_BaseJumper_dna-qc_dna_run -o log/%J_03b_BaseJumper_dna-qc_dna_run.out -e log/%J_03b_BaseJumper_dna-qc_dna_run.err 'bash src/03b_BaseJumper_dna-qc_dna_run.sh'
 
 # dirs
 wd=$(pwd)
@@ -27,4 +27,4 @@ export LSB_EXCLUSIVE=Y
     -resume 
 )
 
-# bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J 04b_BaseJumper_dna-qc_dna_symlink -o "log/%J_04b_BaseJumper_dna-qc_dna_symlink.out" ". ~/.bashrc ; replace_symlinks out/BaseJumper/bj-dna-qc/dna/PD63118_run/"
+# bsub -q basement -M10000 -R 'span[hosts=1] select[mem>10000] rusage[mem=10000]' -J 03b_BaseJumper_dna-qc_dna_symlink -o "log/%J_03b_BaseJumper_dna-qc_dna_symlink.out" ". ~/.bashrc ; replace_symlinks out/BaseJumper/bj-dna-qc/dna/PD63118_run/"

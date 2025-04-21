@@ -14,7 +14,7 @@ readr::read_csv("data/resolveome/samplesheet_local.csv") %>%
   dplyr::filter(seq_type == "dna") %>%
   dplyr::transmute(id, donor_id,
                    bam = paste0(bjsvc_dir, donor_id,
-                                "_250306_232001/secondary_analyses/alignment/",
+                                "_run/secondary_analyses/alignment/",
                                 id, ".bam")) %>%
   dplyr::filter(file.exists(bam)) %>%
   readr::write_csv(file.path(out_dir, "samplesheet.csv"))

@@ -1,5 +1,5 @@
 #!/bin/bash
-# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J 02b_nf-gatk_test -o log/%J_02b_nf-gatk_test.out -e log/%J_02b_nf-gatk_test.err 'bash src/02b_nf-gatk_test.sh'
+# cd /lustre/scratch125/casm/team268im/at31/resolveome ; bsub -q basement -M2000 -R 'span[hosts=1] select[mem>2000] rusage[mem=2000]' -J 04b_nf-gatk_test -o log/%J_04b_nf-gatk_test.out -e log/%J_04b_nf-gatk_test.err 'bash src/04b_nf-gatk_test.sh'
 
 # dir
 wd=$(pwd)
