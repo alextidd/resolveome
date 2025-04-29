@@ -28,7 +28,40 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(stringr)
+library(GenomicRanges)
+library(rtracklayer)
 source("bin/utils.R")
+
+# function: plot vaf distribution with depth information
+plot_vaf_dist <- function(p_dat, p_title = "VAF distribution") {
+  n_muts <-
+    p_dat %>%
+    distinct(chr, pos, ref, mut) %>%
+    nrow()
+  p_dat_binned <-
+    p_dat %>%
+    mutate(
+      total_depth_bin = cut(
+        total_depth, breaks = c(0, 10, 20, 50, 100, Inf),
+        labels = c("<10", "10–20", "20–50", "50–100", ">100")),
+      mut_vaf_bin = cut(mut_vaf, breaks = seq(0, 1, length.out = 30 + 1),
+                        include.lowest = TRUE),
+      mut_vaf_min = str_extract(mut_vaf_bin, "[\\d\\.]+") %>% as.numeric(),
+      mut_vaf_high = as.numeric(str_extract(mut_vaf_bin, "(?<=,)\\s*[\\d\\.]+")),
+      mut_vaf_mid = (mut_vaf_min + mut_vaf_high) / 2) %>%
+    count(mut_vaf_bin, mut_vaf_mid, total_depth_bin)
+  p <-
+    p_dat_binned %>%
+    ggplot(aes(x = mut_vaf_mid, y = n, fill = total_depth_bin)) +
+    geom_col() +
+    scale_fill_viridis_d() +
+    theme_classic() +
+    labs(title = p_title, subtitle = paste(n_muts, "mutations"),
+         x = "VAF bin", y = "n mutations") +
+    lims(x = c(0, 1)) +
+    scale_y_continuous(expand = c(0, 0))
+  print(p)
+}
 ```
 
 We load the samplesheet.
@@ -50,20 +83,139 @@ man_insp <-
   select(-run_id)
 ```
 
-We load the annotated variants.
+## Genotyping with `nf-resolveome`
 
-```{r load_vars}
+We load the genotyped, annotated variants from `nf-resolveome`.
+
+```{r load_genos}
+geno_muts_by_seq_type <-
+  c("dna", "dnahyb") %>%
+  purrr::set_names() %>%
+  purrr::map(function(seq_type) {
+    paste0("out/nf-resolveome/", seq_type,
+           "/PD63118/genotyping/mutations/PD63118_annotated_mutations.tsv") %>%
+      readr::read_tsv() %>%
+      filter(mut_depth > 0)
+  }) %>%
+  bind_rows(.id = "seq_type") %>%
+  left_join(ss %>% select(id, cell_id)) %>%
+  dplyr::rename(mut = alt) %>%
+  mutate(chr = paste0("chr", chr),
+         mut_id = paste(chr, pos, ref, mut, sep = "_"))
+```
+
+We compare the VAFs of mutations called in both DNA and DNAhyb.
+
+```{r plot_dna_vs_dnahyb}
+geno_muts_by_seq_type %>%
+  group_by(cell_id, mut_id) %>%
+  filter(n() > 1) %>%
+  mutate(total_depth = sum(total_depth)) %>%
+  tidyr::pivot_wider(id_cols = c("mut_id", "cell_id", "total_depth"),
+                     names_from = seq_type, values_from = mut_vaf) %>%
+  ggplot(aes(x = dna, y = dnahyb)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  geom_point(alpha = 0.5) +
+  theme_bw() +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  coord_equal()
+```
+
+We pileup the mutations across DNA and DNAhyb.
+
+```{r pileup_geno_muts}
+geno_muts <-
+  geno_muts_by_seq_type %>%
+  group_by(cell_id, mut_id) %>%
+  mutate(seq_type = paste(unique(seq_type), collapse = "+")) %>%
+  # pileup across dna and dnahyb
+  group_by(across(-c(ends_with("_depth"), mut_vaf, id))) %>%
+  summarise(mut_depth = sum(mut_depth), total_depth = sum(total_depth)) %>%
+  ungroup() %>%
+  mutate(mut_vaf = mut_depth / total_depth)
+```
+
+We plot the VAF distribution.
+
+```{r plot_vaf_geno_muts}
+geno_muts %>%
+  plot_vaf_dist()
+```
+
+We filter the genotyped variants to those with a VAF > 0.1 and a mutant depth >
+10.
+
+```{r filter_geno_muts}
+geno_muts_filtered <- geno_muts %>% filter(mut_vaf > 0.1, mut_depth > 10)
+
+# plot vaf vs cov
+geno_muts %>%
+  ggplot(aes(x = total_depth, y = mut_vaf, size = mut_depth,
+         colour = mut_depth > 10)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0.1, linetype = "dashed", color = "red") +
+  theme_bw() +
+  ggtitle("coverage vs VAF") +
+  scale_colour_manual(values = c("black", "red"))
+
+# plot filtered vaf distribution
+geno_muts_filtered %>%
+  plot_vaf_dist("VAF distribution - mut_vaf > 0.1, mut_depth > 10")
+```
+
+We plot the VAF distribution by sequencing type for both the filtered and the
+raw genotyping.
+
+```{r plot_vaf_geno_muts_by_seq_type}
+# plot geno vaf distribution by seq type
+p_dat <-
+  geno_muts %>%
+  split(.$seq_type)
+purrr::walk2(names(p_dat), p_dat, function(p_title, p_dat) {
+  p <-
+    p_dat %>%
+    plot_vaf_dist(paste("VAF distribution -", p_title))
+  print(p)
+})
+
+# plot filtered geno vaf distribution by seq type
+p_dat <-
+  geno_muts_filtered %>%
+  split(.$seq_type)
+purrr::walk2(names(p_dat), p_dat, function(p_title, p_dat) {
+  p <-
+    p_dat %>%
+    plot_vaf_dist(paste("VAF distribution -", p_title))
+  print(p)
+})
+```
+
+We plot the VAF heatmap for the filtered genotyped variants.
+
+```{r plot_heatmap_geno_muts, fig.width = 20, fig.height = 20}
+geno_muts %>%
+  mutate(alt = mut) %>%
+  plot_vaf_heatmap("all mutations", show_rownames = FALSE)
+
+geno_muts_filtered %>%
+  mutate(alt = mut) %>%
+  plot_vaf_heatmap("mut_vaf > 0.1, mut_depth > 10")
+```
+
+## Mutation calling with `bj-somatic-variantcalling`
+
+We load the called variants from `bj-somatic-variantcalling` and annotate them.
+
+```{r load_muts}
 # set the outdir
 out_dir <- "out/BaseJumper/bj-somatic-variantcalling/dnahyb/PD63118_run/"
-
-# increase buffer size
-Sys.setenv("VROOM_CONNECTION_SIZE" = 5000000)
 
 # get variants
 "out/BaseJumper/bj-somatic-variantcalling/dnahyb/PD63118_run/"
 
 # get nr and nv
-mutations <-
+bj_muts_38 <-
   c("dna", "dnahyb") %>%
   purrr::set_names() %>%
   purrr::map(function(seq_type) {
@@ -88,137 +240,140 @@ mutations <-
   left_join(ss %>% select(id, cell_id)) %>%
   group_by(cell_id) %>%
   mutate(seq_type = paste(unique(seq_type), collapse = "+")) %>%
+  # pileup across dna and dnahyb
   group_by(chr, pos, ref, mut, mut_id, cell_id, seq_type) %>%
   summarise(mut_depth = sum(mut_depth), total_depth = sum(total_depth)) %>%
   ungroup() %>%
   mutate(mut_vaf = mut_depth / total_depth)
 
-# annotate mutations with dndscv
+# annotate bj_muts with dndscv
+refcds <- "../reference/dndscv/RefCDS_human_GRCh38_GencodeV18_recommended.rda"
 dndscv_in <-
-  mutations %>%
+  bj_muts_38 %>%
   transmute(sampleID = "", chr = gsub("chr", "", chr), pos, ref, mut) %>%
   distinct()
 dndscv_out <-
   dndscv::dndscv(dndscv_in, max_muts_per_gene_per_sample = Inf,
-                 max_coding_muts_per_sample = Inf, outp = 1,
-                 refdb = "../reference/dndscv/RefCDS_human_GRCh38_GencodeV18_recommended.rda")
+                 max_coding_muts_per_sample = Inf, outp = 1, refdb = refcds)
 
 # add mutation annotations
-mutations <-
-  mutations %>%
+bj_muts_38 <-
+  bj_muts_38 %>%
   left_join(
     dndscv_out$annotmuts %>%
       mutate(chr = paste0("chr", chr)) %>%
       select(-sampleID)) %>%
-  left_join(man_insp) %>%
-  mutate(alt = mut)
+  left_join(man_insp)
+
+# lift over to grch37
+bj_muts <-
+  bj_muts_38 %>%
+  {GRanges(seqnames = .$chr,
+           ranges = IRanges(start = .$pos, end = .$pos),
+           pos = .$pos)} %>%
+  liftOver(import.chain("../reference/liftOver/hg38ToHg19.over.chain")) %>%
+  unlist() %>%
+  tibble::as_tibble() %>%
+  distinct() %>%
+  dplyr::transmute(chr = seqnames, pos_37 = start, pos) %>%
+  inner_join(bj_muts_38) %>%
+  mutate(pos = pos_37,
+         mut_id = paste(chr, pos, ref, mut, sep = "_"))
 ```
 
-Plot the VAF distribution.
+Plot the VAF distribution overall and per cell.
 
 ```{r plot_vaf}
-plot_vaf_dist <- function(p_dat, p_title = "VAF distribution") {
-  p_dat_binned <-
-    p_dat %>%
-    mutate(
-      total_depth_bin = cut(total_depth, breaks = c(0, 10, 20, 50, 100, Inf), labels = c("<10", "10–20", "20–50", "50–100", ">100")),
-      mut_vaf_bin = cut(mut_vaf, breaks = seq(0, 1, length.out = 30 + 1),
-                        include.lowest = TRUE),
-      mut_vaf_min = str_extract(mut_vaf_bin, "[\\d\\.]+") %>% as.numeric(),
-      mut_vaf_high = str_extract(mut_vaf_bin, "(?<=,)\\s*[\\d\\.]+") %>% as.numeric(),
-      mut_vaf_mid = (mut_vaf_min + mut_vaf_high) / 2) %>%
-    count(mut_vaf_bin, mut_vaf_mid, total_depth_bin)
-  p <-
-    p_dat_binned %>%
-    ggplot(aes(x = mut_vaf_mid, y = n, fill = total_depth_bin)) +
-    geom_col() +
-    scale_fill_viridis_d() +
-    theme_classic() +
-    labs(title = p_title, subtitle = paste(n_distinct(p_dat$mut_id), "mutations")) +
-    lims(x = c(0, 1)) +
-    scale_y_continuous(expand = c(0, 0))
-  print(p)
-}
+# plot vaf distribution
+bj_muts %>%
+  plot_vaf_dist("VAF distribution")
 
-mutations %>%
-  plot_vaf_dist()
-
-pdf("test.pdf", height = 5)
-purrr::walk(sort(unique(mutations$cell_id)), function(cell_id_i) {
+# plot vaf distribution by cell
+purrr::walk(sort(unique(bj_muts$cell_id)), function(cell_id_i) {
   print(cell_id_i)
   p_dat <-
-    mutations %>%
+    bj_muts %>%
     filter(cell_id == cell_id_i)
   p <-
     p_dat %>%
     plot_vaf_dist(paste(cell_id_i, "-", unique(p_dat$seq_type)))
   print(p)
 })
-dev.off()
+```
+
+We filter the variants.
+
+```{r filter_bj_muts}
+bj_muts_filtered <- bj_muts %>%
+  filter(mut_vaf > 0.1, mut_depth > 10)
+
+# plot vaf vs cov
+bj_muts %>%
+  ggplot(aes(x = total_depth, y = mut_vaf, size = mut_depth,
+         colour = mut_depth > 10)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0.1, linetype = "dashed", color = "red") +
+  theme_bw() +
+  ggtitle("coverage vs VAF") +
+  scale_colour_manual(values = c("black", "red"))
+
+# plot filtered vaf distribution
+bj_muts_filtered %>%
+  plot_vaf_dist("VAF distribution - mut_vaf > 0.1, mut_depth > 10")
 ```
 
 Plot a heatmap of the variants.
 
 ```{r plot_heatmap}
 # all muts
-mutations %>%
-  filter(mut_vaf > 0.1) %>%
+bj_muts %>%
+  mutate(alt = mut) %>%
   plot_vaf_heatmap()
 
 # filtered muts
-mutations %>%
-  filter(mut_vaf > 0) %>%
+bj_muts_filtered %>%
+  mutate(alt = mut) %>%
+  plot_vaf_heatmap("mut_vaf > 0.1, mut_depth > 10")
+
+# filtered muts, excluding common muts
+bj_muts_filtered %>%
   add_count(mut_id, name = "n_cells_w_mut") %>%
   mutate(n_cells = n_distinct(id),
          prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
   filter(prop_cells_w_mut < 0.3) %>%
-  plot_vaf_heatmap("VAF heatmap - % cells w mut < 30%")
+  plot_vaf_heatmap("mut_vaf > 0.1, mut_depth > 10, % cells w mut < 30%")
 
-# look at shared muts
-p_dat <-
-  mutations %>%
-  # remove muts with VAF < 0.3
-  filter(mut_vaf >= 0.3) %>%
-  mutate(mut_id = paste(chr, pos, ref, mut, sep = "-"),
-                n_cells = n_distinct(id)) %>%
-  add_count(mut_id, name = "n_cells_w_mut") %>%
-  mutate(prop_cells_w_mut = n_cells_w_mut / n_cells) %>%
-  filter(n_cells_w_mut > 1, prop_cells_w_mut < 0.3)
+# shared muts
+bj_muts_filtered %>%
+  group_by(mut_id) %>%
+  filter(n_distinct(cell_id) > 1) %>%
+  plot_vaf_heatmap("mut_vaf > 0.1, mut_depth > 10, shared mutations")
+```
 
-# reshape data for heatmap
-heatmap_data <-
-  p_dat %>%
-  reshape2::dcast(mut_id + n_cells_w_mut ~ id, value.var = "mut_vaf")
-rownames(heatmap_data) <- heatmap_data$mut_id
-heatmap_matrix <- as.matrix(heatmap_data[, -c(1:3)]) # drop annotations
-n_total_muts <- n_distinct(p_dat$mut_id)
-n_total_cells <- n_distinct(p_dat$id)
+## Compare `bj-somatic-variantcalling` and `nf-resolveome`
 
-# calculate the number of mutations per column (id)
-annotation_col <-
-  p_dat %>%
-  count(id, name = "n_muts") %>%
-  left_join(metadata %>% select(run_id, id)) %>%
-  mutate(run_id = as.character(run_id)) %>%
-  tibble::column_to_rownames("id")
+We compare the mutations called by `bj-somatic-variantcalling` and
+`nf-resolveome`. All of the mutations genotyped by `nf-resolveome` are 
+mutations detected in the patient using NanoSeq, so we expect that these are 
+real when their VAFs are convincing. We want to understand how often these known 
+mutations are also called by `bj-somatic-variantcalling`.
 
-# replace NAs with 0
-heatmap_matrix[is.na(heatmap_matrix)] <- 0
+```{r compare_geno_vs_bj}
+muts <-
+  list("genotyping" = geno_muts,
+       "bj-somatic-variantcalling" = bj_muts) %>%
+  bind_rows(.id = "method")
 
-# prepare annotations for columns
-annotation_row <- data.frame(n = heatmap_data$n)
-rownames(annotation_row) <- heatmap_data$mut_id
+muts %>%
+  group_by(cell_id, mut_id) %>%
+  filter(n() > 1)
 
-# plot
-pheatmap::pheatmap(
-  mat = heatmap_matrix,
-  cluster_rows = TRUE,
-  cluster_cols = TRUE,
-  show_rownames = FALSE,
-  annotation_row = annotation_row,
-  annotation_col = annotation_col,
-  color = colorRampPalette(c("white", "blue"))(50),
-  main = paste("VAF heatmap\n",
-               n_total_cells, "cells,", n_total_muts, "mutations")
-)
+muts_filtered <-
+  list("genotyping" = geno_muts_filtered,
+       "bj-somatic-variantcalling" = bj_muts_filtered) %>%
+  bind_rows(.id = "method")
+
+muts_filtered %>%
+  group_by(cell_id, mut_id) %>%
+  filter(n() > 1)
 ```
